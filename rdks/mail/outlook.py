@@ -28,7 +28,7 @@ GNU General Public License for more details.
 """
 
 __all__ = [
-    'ThreadedIndex', 'FileTime', 'Header', 'Response',
+    'ThreadIndex', 'FileTime', 'Header', 'Response',
 ]
 
 import base64
@@ -107,7 +107,7 @@ class ThreadIndex(object):
         return self._responses
 
     def __hash__(self):
-        return hash((self.header, responses))
+        return hash((self.header, self.responses))
 
     # since ThreadIndex is now immutable,
     # use these to append your own thing :)
@@ -174,11 +174,11 @@ class FileTime(object):
     def __bytes__(self):
         return struct.pack('>Q', self.ticks)
 
-    def low_datetime():
+    def low_datetime(self):
         """Return dwLowDateTime as a DWORD (unsigned 32-bit int)."""
         return self.ticks & 0xfffffff
 
-    def high_datetime():
+    def high_datetime(self):
         """Return dwHighDateTime as a DWORD (unsigned 32-bit int)."""
         return self.ticks >> 32
 
@@ -233,7 +233,7 @@ class FileTime(object):
         processed identically."""
         if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
             utctime = dt.astimezone(datetime.timezone.utc)
-            return self.from_datetime(utctime.replace(tzinfo=None))
+            return cls.from_datetime(utctime.replace(tzinfo=None))
         offset = dt - cls.BASE
         seconds = offset.seconds + offset.days * 86400
         return cls(seconds * cls.PREC + offset.microseconds * 10)
