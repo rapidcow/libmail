@@ -1,0 +1,10 @@
+rdks.mail - e-mail utilities
+----------------------------
+
+at the moment it will only contain one
+module, 'outlook', which deals with the
+(annoying) Thread-Index header.
+
+license is GPLv3 as always because that would be
+too ironic making programs that are made to decode
+proprietary stuff proprietary again :/
