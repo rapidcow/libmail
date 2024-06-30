@@ -151,12 +151,15 @@ def _main(source, dest, args):
                 raise ValueError('%s field not found' % (field,))
 
         o = raw_items['options']
-        message = _parse_headers(reader.get_content(raw_items['headers']), o)
+        message = _parse_headers(reader.get_content(
+            raw_items['headers'], interpret_input=True), o)
         done = False
         with contextlib.ExitStack() as s:
             for critter in (
-                s.push(reader.inner_data_reader(raw_items['content'])),
-                s.push(reader.inner_rest_reader(raw_items['content'])),
+                s.push(reader.inner_data_reader(
+                    raw_items['content'], interpret_input=True)),
+                s.push(reader.inner_rest_reader(
+                    raw_items['content'], interpret_input=True)),
             ):
                 if not done:
                     done = _set_content(message, critter, o)
@@ -909,6 +912,10 @@ class ConfigReader:
                         # the outer indent this whole node resides in
                         off_char += len(pair.indent) + len(line)
                     else:
+                        # note that aborting midway gives us a LF while
+                        # terminating at the end does not, so if
+                        # that's the case, add it back in.
+                        value_lines.append(b'\n')
                         off_char += 1 # eol reader chomped off
                 else:
                     # case of:
@@ -942,12 +949,7 @@ class ConfigReader:
                         value += line
                         last = peek
 
-                    try:
-                        value_lines.pop()
-                    except IndexError:
-                        pass
-
-                data = b''.join(value_lines)
+                data = _chomp(b''.join(value_lines))
                 rest = lines[rel_line + 1:]
 
         return ConfigNode(
