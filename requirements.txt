@@ -1,0 +1,2 @@
+# mirror for rdks-list==0.0
+git+https://git.rapidcow.org/rdks-list.git@205fee77c981bd2c3b0e8e3c100d0553aa91983a

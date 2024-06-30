@@ -1,10 +1,59 @@
 rdks.mail - e-mail utilities
 ----------------------------
 
-at the moment it will only contain one
-module, 'outlook', which deals with the
-(annoying) Thread-Index header.
+at the moment it contains two modules and one BIG CLI program!
 
-license is GPLv3 as always because that would be
-too ironic making programs that are made to decode
-proprietary stuff proprietary again :/
+modules:
+
+  * outlook:  deals with the (annoying) Thread-Index header.
+    - utils.parse_thread_index:  CLI for the outlook module.
+        (run with: `python -m rdks.mail.utils.parse_thread_index`
+         or simply `parse-thread-index`)
+
+  * content:  deals with RFC 1521/2045 content transfer encodings
+              (currently only the encoders are implemented).
+
+program!
+
+  * compose.py:  composes RFC 5322 e-mails with MIME version 1.0
+                 (depends an awful lot of on python's RFC 5322
+                  style-preserving header parsing & creation,
+                  though MIME body encoding comes out of the box. :)
+
+installation is a bit harder due to compose.py depending on
+rdks.list, but this should work:
+
+    git clone https://git.rapidcow.org/rdks-mail.git
+    # depending on where your python/pip3 command lives
+    # you MAY have to change pip into pip3, python -m pip, etc...
+    pip install -r requirements.txt
+    pip install -e ./rdks-mail
+
+(of course you could clone rdks-list too and... but i think you
+ already know how to do that)
+
+remote version (XXX: NOT tested)
+
+    pip install -r https://git.rapidcow.org/rdks-mail/plain/requirements.txt
+    pip install git+https://git.rapidcow.org/rdks-mail.git
+
+license is GPLv3+, that plus is doing work because it means
+you are explicitly allowed to "upgrade" to a newer version.
+see COPYING for the full license.
+
+finally uh, this copyright & license notice thingy:
+
+Copyright (C) 2024  Ethan Meng (rapidcow)
+
+rapid's e-mail utilities (hereafter rdks.mail) is free software:
+you can redistribute it and/or modify it under the terms of the
+GNU General Public License as published by the Free Software Foundation,
+either version 3 of the License, or (at your option) any later version.
+
+rdks.mail is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with rdks.mail.  If not, see <http://www.gnu.org/licenses/>.

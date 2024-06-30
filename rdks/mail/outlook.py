@@ -11,23 +11,19 @@ note: the protocol is technically called exchange, outlook
 being the program (???), but i named this outlook.py so that
 i am less confused
 
----
-oh yeah legal stuff
+copyright (c) 2024  Ethan Meng (rapidcow)
+outlook.py is part of rdks-mail, licensed under GPLv3+:
+<https://git.rapidcow.org/rdks-mail/about/>
 
-Copyright (C) 2024  Ethan Meng <ethan@rapidcow.org>
+outlook.py is free software: you may redistribute it and/or
+modify it under the terms of GNU GPL version 3 or above.
+to get one such license for reference, see
+<https://www.gnu.org/licenses/>.
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+compose.py is free software: you may redistribute it and/or
+modify it under the terms of GNU GPL version 3 or above.
+to get one such license for reference, see
+<https://www.gnu.org/licenses/>.
 """
 
 __all__ = [
