@@ -993,7 +993,7 @@ class ConfigReader:
                 writer = rdks.list.writer(tmp, text=False, delim=b' ')
                 # name shadowing, pesky... >_>
                 for pear in self.inner_rest_reader(pair, **kwds):
-                    writer.writepair(pear)
+                    writer.writepair(pear.replace(value=pear.content))
                 buff = _chomp(tmp.getvalue())
                 value = _subs(buff.decode('utf-8')).encode('utf-8')
         return value

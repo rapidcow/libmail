@@ -69,5 +69,38 @@ class TestInlineData(unittest.TestCase):
         with self.assertRaises(StopIteration):
             next(reed)
 
+# we've seen IN-line data...
+# why not add some OUT-line data? ;)
+class TestOutlineData(unittest.TestCase):
+    def test_header_inputs(self):
+        message = compose('message', 'output',
+            now=b'Date: Mon, 01 Jul 2024 12:55:37 +0800',
+            real_recip=b'nick 2sbox.com <nick@2sbox.com>',
+            test_recip=b'<eyzmeng@gmail.com>',
+            body=b'yo are you frfr\n',
+            message=(
+                b"options\n"
+                b"  linesep LF\n"
+                b"headers\n"
+                b"  Date: < now\n"
+                b"  From: Ethan Meng <ethan@yizz.me>\n"
+                b"  To: < test_recip\n"
+                b"content\n"
+                b"  text/plain < body\n"
+                b"    with charset utf-8\n"
+                b"    of encoding 7bit\n"
+            ))
+
+        self.assertEqual(message,
+            b"Date: Date: Mon, 01 Jul 2024 12:55:37 +0800\n"
+            b"From: Ethan Meng <ethan@yizz.me>\n"
+            b"To: <eyzmeng@gmail.com>\n"
+            b"MIME-Version: 1.0\n"
+            b'Content-Type: text/plain; charset="utf-8"\n'
+            b"Content-Transfer-Encoding: 7bit\n"
+            b"\n"
+            b"yo are you frfr\n"
+        )
+
 if __name__ == '__main__':
     unittest.main()
