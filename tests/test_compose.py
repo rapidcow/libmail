@@ -47,6 +47,27 @@ class TestInlineData(unittest.TestCase):
             "lolol\n"
         )
 
+    def test_bare_inline_marker(self):
+        """a bare "<<" should be tokenized as [b'<<']."""
+        reed = rdks.mail.compose.ConfigReader('<memory>', 'where-ever', [
+            b"this <<\n",
+            b"  is something\n",
+            b"that << \n",
+            b"  too is something\n",
+            b"  \n",
+        ])
+        pear_one = next(reed)
+        self.assertEqual(pear_one.input_root, 'where-ever')
+        self.assertEqual(pear_one.input_file, '<memory>')
+        self.assertEqual(pear_one.data, b"is something")
+
+        pear_two = next(reed)
+        self.assertEqual(pear_two.input_root, 'where-ever')
+        self.assertEqual(pear_two.input_file, '<memory>')
+        self.assertEqual(pear_two.data, b"too is something\n")
+
+        with self.assertRaises(StopIteration):
+            next(reed)
 
 if __name__ == '__main__':
     unittest.main()

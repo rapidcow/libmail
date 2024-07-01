@@ -866,10 +866,13 @@ class ConfigReader:
         # first line)
         last = pair
         value = pair.value
+        logger.debug('scanning for input in node(%r, %r)',
+                     pair.key, _shorten(pair.value, 69))
         if (pair.key and pair.value and
             pair.value.startswith(b'<') and
             self._do_input):
-            tokens = lines[0].split(b' ')
+            tokens = _chomp(lines[0]).split(b' ')
+            logger.debug('(yep, it made it) %r', tokens)
             # for now i guess i will require people to write
             # field < input and not field (LF) (space) < input...
             if not pair.hanging and tokens[0] == b'<':
