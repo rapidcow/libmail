@@ -39,7 +39,7 @@ class TestInlineData(unittest.TestCase):
             "From: Ethan Meng <ethan@yizz.me>\n"
             "To: nick 2sbox.com <nick@2sbox.com>\n"
             "MIME-Version: 1.0\n"
-            "Content-Type: text/plain\n"
+            'Content-Type: text/plain; charset="us-ascii"\n'
             "Content-Transfer-Encoding: 7bit\n"
             "Content-Description: Sorry Nick. I was bored. :)))\n"
             "\n"
@@ -65,6 +65,60 @@ class TestInlineData(unittest.TestCase):
         self.assertEqual(pear_two.input_root, 'where-ever')
         self.assertEqual(pear_two.input_file, '<memory>')
         self.assertEqual(pear_two.data, b"too is something\n")
+
+        with self.assertRaises(StopIteration):
+            next(reed)
+
+    def test_inline_termination(self):
+        """test that "<<" actually ends. this is only a problem
+        when we have a prefix."""
+        reed = rdks.mail.compose.ConfigReader('<memory>', 'where-ever', [
+            b"niche-list << foo bar\n",
+            b"  foo bar this is\n",
+            b"  foo bar  a list\n",
+            b"  foo bar that i\n",
+            b"  foo baractually\n",
+            b"  foo bar like\n",
+            b"  foo bar-unlike\n",
+            b"  foo baz.\n",
+            b"  or rainbows.\n",
+            b"weird-list << foo bar\n",
+            b"foo bar every line\n",
+            b"foo bar must be\n",
+            b"foo barexactly\n",
+            b'foo bar    "FOOBAR"\n',
+            b"foo bar-and not\n",
+            b"foo bar ",
+            b"foo baz.\n",
+            b"(though foo baz should probably not be eaten)\n",
+        ])
+
+        pair_niche = next(reed)
+        self.assertEqual(pair_niche.key, b'niche-list')
+        self.assertEqual(pair_niche.data.decode('ascii'),
+            "this is\n"
+            " a list\n"
+            "that i\n"
+            "actually\n"
+            "like\n"
+            "-unlike"
+        )
+        self.assertEqual(pair_niche.rest, [b'foo baz.\n', b'or rainbows.'])
+
+        pair_weird = next(reed)
+        self.assertEqual(pair_weird.key, b'weird-list')
+        self.assertEqual(pair_weird.data.decode('ascii'),
+            "every line\n"
+            "must be\n"
+            "exactly\n"
+            '   "FOOBAR"\n'
+            "-and not\n"
+        )
+
+        self.assertEqual(next(reed), tuple(b'foo baz.'.split(b' ', 1)))
+        self.assertEqual(next(reed), tuple(
+            b'(though foo baz should probably not be eaten)'
+            .split(b' ', 1)))
 
         with self.assertRaises(StopIteration):
             next(reed)

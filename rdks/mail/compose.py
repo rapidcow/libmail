@@ -908,7 +908,15 @@ class ConfigReader:
                         # this condition is trivially satisfied when
                         # prefix is empty, making this... gobble up
                         # every line yeah
+                        #logger.debug('line %d: %r', rel_line, line)
                         if not line.startswith(prefix):
+                            if logger.isEnabledFor(logging.DEBUG):
+                                logger.debug(
+                                    'end of inline string prefixed with %r '
+                                    'at on line %d in node(%r, %r)',
+                                    prefix, rel_line, pair.key,
+                                    _shorten(pair.value, 69))
+                            rel_line -= 1
                             break
                         value_lines.append(_skipleft(line[len(prefix):]))
                         off_line += 1
@@ -935,13 +943,20 @@ class ConfigReader:
                             peek = self._next_pair()
                         except StopIteration:
                             break
-                        if not (peek.key or b'').startswith(prefix):
-                            self._lookahead = peek
-                            break
+                        #logger.debug('line x: %r', peek)
                         if peek.value is None:
                             line = peek.key or b''
                         else:
                             line = self._reader.delim.join(peek)
+                        if not line.startswith(prefix):
+                            if logger.isEnabledFor(logging.DEBUG):
+                                logger.debug(
+                                    'end of inline string prefixed with %r '
+                                    'encountered at node(%r, %r)',
+                                    prefix, peek.key,
+                                    _shorten(peek.value, 69))
+                            self._lookahead = peek
+                            break
                         # things should always come back to the ground
                         # if not starting with the prefix!
                         if b'\n' in line:
