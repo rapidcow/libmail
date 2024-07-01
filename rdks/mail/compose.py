@@ -367,7 +367,8 @@ def _set_content_from_node(message, reader, root, o):
     charset = message.get_param('charset', None)
     if not multipart:
         if root.data is None:
-            raise reader.error('non-multipart messages must have input data')
+            raise reader.error(root.start.lineno,
+                'non-multipart messages must have input data')
         if encoding == 'quoted-printable':
             eparams.setdefault('maxlinelen', o['maxlinelen'])
             eparams.setdefault('embed', truetype.startswith('text/'))
@@ -878,7 +879,7 @@ class ConfigReader:
                         pass
                 except OSError as e:
                     raise self.error(pair.start.lineno,
-                        'cannot input file %r') from e
+                        'cannot input file %r', file) from e
                 off_line += 1
                 off_char += len(lines[0])
                 data = None
