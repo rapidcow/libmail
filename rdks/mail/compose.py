@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """compose.py - ethan's non-email client -.-
 
 i'll write about the syntax later but *yawn*
@@ -12,6 +13,7 @@ compose.py is free software: you may redistribute it and/or
 modify it under the terms of GNU GPL version 3 or above.
 to get one such license for reference, see
 <https://www.gnu.org/licenses/>.
+there is NO WARRANTY, to the extent permitted by law.
 """
 
 import email.message
@@ -57,6 +59,44 @@ logger.addHandler(console)
 logger.setLevel(logging.WARNING)
 console.setLevel(logging.DEBUG)
 
+class TemperamentalBoolean(object):
+    """i might be a bool.... but sometimes i'd FEEL otherwise >:)"""
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+        cls._registry = {}
+
+    def __new__(cls, value):
+        truth = bool(value)
+        try:
+            return cls._registry[truth]
+        except KeyError:
+            cls._registry[truth] = super().__new__(cls)
+            return cls._registry[truth]
+
+    def __init__(self, value):
+        self._truth = bool(value)
+
+    def __str__(self):
+        return ('no', 'on')[self._truth]
+
+    def __repr__(self):
+        return '%s(%r)' % (self.__class__.__name__, self._truth)
+
+    def __bool__(self):
+        return self._truth
+
+    def __index__(self):
+        return self._truth.__index__()
+
+    def __eq__(self, other):
+        return other is self._truth or super().__eq__(other)
+
+class Maybe(TemperamentalBoolean):
+    """yes, no, maybe so"""
+
+class MustBe(TemperamentalBoolean):
+    """must have been the wind"""
+
 __author__ = 'Ethan Y. Meng :3'
 __version__ = '0.0'
 __all__ = ['main']
@@ -72,7 +112,7 @@ def main(argv=None):
         )
     )
     parser.add_argument('--version', '-V', action='version',
-                        version='%%(prog) %s' % __version__)
+                        version='%%(prog)s %s' % __version__)
     parser.add_argument('--cwd', '-C', metavar='PATH', default=None,
                         help='base directory (default: $PWD)')
     # input/output
@@ -143,7 +183,7 @@ def _main(source, dest, args):
             'maxlinelen': 80,
             # we will set this later; this is indeed 1000 by default,
             # or 0 if we see one or more binary CTE.  if the user
-            # sets a value themselves (or a new standard that extends
+            # sets a value themselves (or a new standard extends
             # this limit with an extension) we won't try to mess
             # with that.
             'smtpline': None,
@@ -154,9 +194,6 @@ def _main(source, dest, args):
             'binarymime': False,
         },
     }
-    if args.server:
-        options = capabilities(args.server, args.port, args.protocol)
-        raw_items['options'].update(options)
 
     sourcefile = args.message if args.message != '-' else None
     with ConfigReader(sourcefile, cwd, source) as reader:
@@ -205,12 +242,15 @@ def _main(source, dest, args):
                             x.start.lineno, 'trailing content')
 
     o = raw_items['options']
+    if args.server:
+        _set_capabilities(o, args.server,
+            args.port, args.protocol, args.verbose)
     if o['smtpline'] is None:
         o['smtpline'] = 1000
     if args.save_options:
         # those who use --save-options should know its consequences.
         # i'm just gonna be extra harsh and always overwrite stuff
-        with open(args.save_options, 'w', encoding='ascii') as fp:
+        with open(args.save_options, 'w', encoding='us-ascii') as fp:
             fp.write('# this file contains options computed ' + (
                      'for %r' % (args.message,)
                      if args.message != '-' else 'from stdin'))
@@ -222,36 +262,47 @@ def _main(source, dest, args):
             fp.write('.\n')
             w = rdks.list.writer(fp, text=True)
             for k, v in o.items():
-                w.write(k, ('off', 'on')[v] if isinstance(
-                            v, bool) else ELPAM[v] if k == 'linesep'
-                            else str(v))
+                if isinstance(v, bool):
+                    w.write(k, ('no', 'on')[v])
+                else:
+                    w.write(k, ELPAM[v] if k == 'linesep' else str(v))
 
     gen = email.generator.BytesGenerator(
         WatchDog(dest, o, args.strict, args.quiet))
     gen.flatten(message)
 
-def capabilities(server, port, protocol):
+def _set_capabilities(options, server, port, protocol, verbose):
     if port is None:
         # wait... is it the other way around?
         # https://serverfault.com/a/1065151
         port = {'smtp': 25, 'smtps': 465, 'starttls': 587}[protocol]
 
-    options = {}
     def _set_features(features):
-        for name, arg in features.items():
-            if name == 'size':
-                options['smtpsize'] = int(arg)
-            elif name in {'smtputf8', '8bitmime', 'binarymime'}:
-                options[name] = True
+        if 'size' in features:
+            cap = int(features['size'])
+            # hard limit always wins, unless the original size
+            # is even more restrictive
+            if options['smtpsize']:
+                options['smtpsize'] = min(options['smtpsize'], cap)
+            else:
+                options['smtpsize'] = cap
+        for name in {'smtputf8', '8bitmime', 'binarymime'}:
+            given = options[name]
+            if given and given is not MustBe(True):
+                options[name] = name in features
+            elif not given and given is Maybe(False):
+                options[name] = name in features
 
     if protocol in ('smtp', 'starttls'):
         with smtplib.SMTP(server, port) as conn:
+            conn.set_debuglevel(verbose)
             if protocol == 'starttls':
                 conn.starttls()
             conn.ehlo_or_helo_if_needed()
             _set_features(conn.esmtp_features)
     else:
         with smtplib.SMTP_SSL(server, port) as conn:
+            conn.set_debuglevel(verbose)
             conn.ehlo_or_helo_if_needed()
             _set_features(conn.esmtp_features)
 
@@ -266,7 +317,7 @@ class WatchDog:
 
     def __init__(self, wrappee, options, strict, quiet):
         self._fp = wrappee
-        self._eol = options['linesep'].encode('ascii')
+        self._eol = options['linesep'].encode('us-ascii')
         self._lineno = 0
         self._charno = 0
         self._maxlen = options['smtpline']
@@ -323,23 +374,54 @@ class WatchDog:
 # for it (at least \n moves the cursor down! cr just brings
 # it to the beginning and writes over everything!)
 MAPLE = {b'lf': '\n', b'crlf': '\r\n', b'cr': '\r'}
-ELPAM = {v: k.upper().decode('ascii') for k, v in MAPLE.items()}
+ELPAM = {v: k.upper().decode('us-ascii') for k, v in MAPLE.items()}
+# mable <- mapble <- map boolean
 # (doesn't have do with mabel o o)
 MABLE = {
+    # note: most of these are jokes, the only sensible ones are
+    #   ON: true ok yes on good positive enabled
+    #   NO: false no off bad negative disabled
+    #   ON? true? ok? maybe? good? on? hopefully
+    #   NO? false? no? maybe... bad? off? maybe not. probably
+    #   ON! true! ok! yes! good! on! absolutely! yippee!
+    #   NO! false! no! bad! off! absolutely not! never!
+    # the rest are for funsies
     b'true': True, b'false': False, b'ok': True,
-    b'yes': True, b'no': False, b'maybe': None,
-    b'on': True, b'off': False, b"yesn't": False,
-    b'enabled': True, b'disabled': False,
-    b'\xf0\x9f\x89\x91': True,  # permissible
-    b'\xf0\x9f\x91\x8c': True,  # OK
-    b'\xf0\x9f\x91\x8d': True,  # thumbs up
-    b'\xf0\x9f\x91\x8e': False, # thumbs down
+    b'true!': MustBe(True), b'false!': MustBe(False), b'ok!': MustBe(True),
+    b'true?': Maybe(True), b'false?': Maybe(False), b'ok?': Maybe(True),
+    b'yes': True, b'no': False, b'maybe': Maybe(True),
+    b'yes!': True, b'no!': False, b'maybe...': Maybe(False),
+    b'yes?': Maybe(True), b'no?': Maybe(False), b'maybe?': Maybe(True),
+    b'good': True, b'bad': False, b'good?': Maybe(True), b'bad?': False,
+    b'good!': MustBe(True), b'bad!': MustBe(False),
+    b'yes?': Maybe(True), b'no?': Maybe(False), b'maybe?': Maybe(True),
+    b'on': True, b'off': False, b'on!': MustBe(True), b'off!': MustBe(False),
+    b'on?': Maybe(True), b'off?': Maybe(False), b'maybe not': Maybe(False),
+    b'hopefully': Maybe(True), b'probably': Maybe(False),
+    b'absolutely!': MustBe(True), b'absolutely not!': MustBe(False),
+    b'yippee!': MustBe(True), b'waaaaegh!': MustBe(False),
+    b'please!': MustBe(True), b'never!': MustBe(False),
+    # english 2.0
+    b"yesn't": False, b'perchance': Maybe(False), b"s'pose": Maybe(True),
+    # you already know this is a joke didn't you
+    '🉑'.encode('utf-8'): True,  # permissible
+    '👌'.encode('utf-8'): True,  # OK
+    '👍'.encode('utf-8'): True,  # thumbs up
+    '👎'.encode('utf-8'): False, # thumbs down
+    # tip: use the android blob emoji font to tell them apart
+    '😆'.encode('utf-8'): MustBe(True),   ':D': MustBe(True),
+    '🙂'.encode('utf-8'): True,           ':)': True,
+    '😕'.encode('utf-8'): Maybe(True),    ':/': Maybe(True),
+    '😐'.encode('utf-8'): Maybe(True),    ':|': Maybe(False),
+    '😶'.encode('utf-8'): Maybe(False),   ': ': Maybe(False),
+    '🙁'.encode('utf-8'): False,          ':(': Maybe(False),
+    '😡'.encode('utf-8'): MustBe(False), '>:(': MustBe(False),
+    # for no reason whatsoever let's throw in a kaomoji too
+    '┐(￣。￣)┌'.encode('utf-8'): Maybe(False),
 }
 
 def _set_options(options, r, x):
-    valid = {name.encode('ascii') for name in options}
-    # mable <- mapble <- map boolean
-
+    valid = {name.encode('us-ascii') for name in options}
     seen = set()
     def _check_redundancy(yippee):
         key = yippee.key.lower()
@@ -355,11 +437,11 @@ def _set_options(options, r, x):
         ):
             for pair in reader:
                 if pair.key.lower() not in valid:
-                    raise reader.error(_begin_lineno(pair.start.lineno),
+                    raise reader.error(_begin_lineno(pair),
                                        'unknown option: %r', pair.key)
                 _check_redundancy(pair)
                 content = _chomp(pair.content)
-                field = pair.key.lower().decode('ascii')
+                field = pair.key.lower().decode('us-ascii')
                 if field in {'maxlinelen', 'smtpline', 'smtpsize'}:
                     value = int(content.decode())
                 elif field == 'linesep':
@@ -367,21 +449,20 @@ def _set_options(options, r, x):
                     try:
                         value = MAPLE[name]
                     except KeyError:
-                        raise reader.error(_begin_lineno(pair.start.lineno),
+                        raise reader.error(_begin_lineno(pair),
                             'invalid linesep: %r', name) from None
                 elif field in {'smtputf8', '8bitmime', 'binarymime'}:
                     name = _chomp(pair.content).lower()
                     try:
                         value = MABLE[name]
                     except KeyError:
-                        raise reader.error(_begin_lineno(pair.start.lineno),
+                        raise reader.error(_begin_lineno(pair),
                             'invalid boolean: %r', name) from None
                 options[field] = value
 
 def _parse_headers(headers, o, strict):
-    # XXX: uhm, we should have at least 3 characters per line... right
     policy = email.policy.EmailPolicy(
-        max_line_length = (max(1, o['maxlinelen'] - 2)
+        max_line_length = (max(1, o['maxlinelen'] - len(o['linesep']))
                             if o['maxlinelen'] else 0),
         linesep         = o['linesep'],
         utf8            = o['smtputf8'],
@@ -415,7 +496,7 @@ BASICPART_VERBS = PARAMHEAD_VERBS | {b'of'}
 MULTIPART_VERBS = BASICPART_VERBS | {b'preamble', b'epilogue', b'including'}
 
 def _set_content_from_node(message, reader, root, o):
-    mimetype = root.key.decode('ascii')
+    mimetype = root.key.decode('us-ascii')
     message['Content-Type'] = mimetype
     multipart = False
     parts = []
@@ -499,7 +580,7 @@ def _set_content_from_node(message, reader, root, o):
                          truetype, eparams)
             payload = mime.encode_qp(root.data, **eparams)
         elif encoding == 'base64':
-            minlen = len(o['linesep'].encode('ascii'))
+            minlen = len(o['linesep'].encode('us-ascii'))
             chunked = o['maxlinelen'] // 4 * 4
             logger.info('encode %s content with base64 using params %r',
                          truetype, eparams)
@@ -508,7 +589,7 @@ def _set_content_from_node(message, reader, root, o):
             addeol = eparams.pop('addeol', False)
             payload = mime.encode_base64(root.data, **eparams)
             if addeol:
-                payload += o['linesep'].encode('ascii')
+                payload += o['linesep'].encode('us-ascii')
         elif encoding in {'7bit', '8bit'}:
             errors = 'surrogateescpape' if encoding == '8bit' else 'strict'
             try:
@@ -557,7 +638,7 @@ def _set_param(message, header, name, reader, pair):
             'missing param and/or value in %s parameters (%s)',
             header, verb)
 
-    param = pear.key.decode('ascii')
+    param = pear.key.decode('us-ascii')
     value = pear.value.decode('utf-8')
 
     try:
@@ -599,7 +680,7 @@ def _set_header(message, reader, pair, o):
             'missing header and/or value in a mime header ("of"): %r',
             (pear.key, pear.value))
 
-    name = pear.key.decode('ascii').lower()
+    name = pear.key.decode('us-ascii').lower()
     value = pear.value.decode('utf-8')
     try:
         header = NAME2MIME_MAP[name]
@@ -679,7 +760,7 @@ def _set_pyparam(store, name, header, value, reader, pair, o):
 
             klower = key.lower()
             try:
-                dupe = next(k for k in store if key == k.encode('ascii'))
+                dupe = next(k for k in store if key == k.encode('us-ascii'))
             except StopIteration:
                 pass
             else:
@@ -693,7 +774,7 @@ def _set_pyparam(store, name, header, value, reader, pair, o):
                                    key, value, ivalid | bvalid)
 
             if key in ivalid:
-                number = int(val.strip().decode('ascii'))
+                number = int(val.strip().decode('us-ascii'))
                 if pair.key == b'maxlinelen':
                     if number > o['maxlinelen']:
                         raise reader.error(pair.middle.lineno,
@@ -701,11 +782,11 @@ def _set_pyparam(store, name, header, value, reader, pair, o):
                             'exceeds line limit imposed on the '
                             'whole message (%d > %d)',
                             number, o['maxlinelen'])
-                store[key.decode('ascii')] = number
+                store[key.decode('us-ascii')] = number
             elif key in bvalid:
                 # XXX copied again
                 try:
-                    store[key.decode('ascii')] = MABLE[val.lower()]
+                    store[key.decode('us-ascii')] = MABLE[val.lower()]
                 except KeyError as e:
                     raise reader.error(pair.start.lineno,
                         'invalid boolean: %r') from e
