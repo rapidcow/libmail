@@ -54,8 +54,8 @@ console = logging.StreamHandler(sys.stderr)
 console.setFormatter(formatter)
 logger.addHandler(console)
 
-logger.setLevel(logging.DEBUG)
-console.setLevel(logging.WARNING)
+logger.setLevel(logging.WARNING)
+console.setLevel(logging.DEBUG)
 
 __author__ = 'Ethan Y. Meng :3'
 __version__ = '0.0'
@@ -66,20 +66,40 @@ def main(argv=None):
         argv = sys.argv[1:]
 
     parser = argparse.ArgumentParser(
-        description='create electronic mail',
+        description=(
+            'create electronic mail, optionally set options '
+            'according to ESMTP capabilities'
+        )
     )
     parser.add_argument('--version', '-V', action='version',
                         version='%%(prog) %s' % __version__)
-    parser.add_argument('--cwd', '-C', metavar='CWD', default=None)
-    parser.add_argument('message')
-    parser.add_argument('--output', '-o', nargs='?', default='-')
-    parser.add_argument('--overwrite', '-y', action='store_true')
-    parser.add_argument('server', nargs='?')
-    parser.add_argument('port', type=int, nargs='?')
-    parser.add_argument('--protocol',
-                        choices=('smtp', 'smtps', 'starttls'),
-                        default='none')
-    parser.add_argument('--verbose', '-v', action='count', default=0)
+    parser.add_argument('--cwd', '-C', metavar='PATH', default=None,
+                        help='base directory (default: $PWD)')
+    # input/output
+    parser.add_argument('message', nargs='?', default='-',
+                        help='file to read message config from (default :-)')
+    parser.add_argument('--output', '-o', metavar='FILE', default='-',
+                        help='file to write the message to (default :-)')
+    parser.add_argument('--overwrite', '-y', action='store_true',
+                        help='always write to output even if it exists')
+    parser.add_argument('--save-options', '-s', metavar='FILE',
+                        help='save global options to somewhere (optional)')
+    # capabilities
+    parser.add_argument('server', nargs='?', help='mail server host '
+                        '(optional)')
+    parser.add_argument('port', type=int, nargs='?', help='mail server port '
+                        '(default: 25 for SMTP, 465 for SMTP SSL,'
+                        ' 587 for STARTTLS)')
+    parser.add_argument('--protocol', metavar='PROTO',
+                        choices=('smtp', 'starttls', 'smtps'),
+                        default='smtp', help='transport protocol ("smtp" for '
+                        'plain SMTP (default), "starttls" for STARTTLS, '
+                        '"smtps" for SSL)')
+    # degree of annoyingness
+    parser.add_argument('--quiet', '-q', action='store_true',
+                        help='disable logging; overrides -v')
+    parser.add_argument('--verbose', '-v', action='count', default=0,
+                        help='set log level (-v for INFO, -vv for DEBUG)')
 
     return _dispatch_instream(parser.parse_args(argv))
 
@@ -105,10 +125,12 @@ def _main(source, dest, args):
         cwd = os.path.abspath(args.cwd)
 
     # logging :)
-    if args.verbose > 1:
-        console.setLevel(logging.DEBUG)
+    if args.quiet:
+        logger.disable(logging.CRITICAL)
+    elif args.verbose > 1:
+        logger.setLevel(logging.DEBUG)
     elif args.verbose > 0:
-        console.setLevel(logging.INFO)
+        logger.setLevel(logging.INFO)
 
     seen = set()
     raw_items = {
@@ -151,6 +173,24 @@ def _main(source, dest, args):
                 raise ValueError('%s field not found' % (field,))
 
         o = raw_items['options']
+        if args.save_options:
+            # those who use --save-options should know its consequences.
+            # i'm just gonna be extra harsh and always overwrite stuff
+            with open(args.save_options, 'w', encoding='ascii') as fp:
+                fp.write('# this file contains options computed ' + (
+                         'for %r' % (args.message,)
+                         if args.message != '-' else 'from stdin'))
+                if args.server:
+                    fp.write(',\n# catered to the smtp server %s'
+                             % (args.server,))
+                    if args.port:
+                        fp.write(' on port %d' % (args.port,))
+                fp.write('.\n')
+                w = rdks.list.writer(fp, text=True)
+                for k, v in o.items():
+                    w.write(k, ('off', 'on')[v] if isinstance(
+                                v, bool) else ELPAM[v] if k == 'linesep'
+                                else str(v))
         message = _parse_headers(reader.get_content(
             raw_items['headers'], interpret_input=True), o)
         done = False
@@ -177,7 +217,9 @@ def _main(source, dest, args):
 
 def capabilities(server, port, protocol):
     if port is None:
-        port = {'smtp': 25, 'starttls': 465, 'smtps': 587}[protocol]
+        # wait... is it the other way around?
+        # https://serverfault.com/a/1065151
+        port = {'smtp': 25, 'smtps': 465, 'starttls': 587}[protocol]
 
     options = {}
     def _set_features(features):
@@ -206,6 +248,7 @@ def capabilities(server, port, protocol):
 # for it (at least \n moves the cursor down! cr just brings
 # it to the beginning and writes over everything!)
 MAPLE = {b'lf': '\n', b'crlf': '\r\n', b'cr': '\r'}
+ELPAM = {v: k.upper().decode('ascii') for k, v in MAPLE.items()}
 # (doesn't have do with mabel o o)
 MABLE = {
     b'true': True, b'false': False, b'ok': True,
