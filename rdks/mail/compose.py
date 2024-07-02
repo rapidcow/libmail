@@ -319,6 +319,7 @@ class WatchDog:
         self._fp = wrappee
         self._eol = options['linesep'].encode('us-ascii')
         self._lineno = 0
+        self._lindex = 0
         self._charno = 0
         self._maxlen = options['smtpline']
         self._maxsiz = options['smtpsize']
@@ -329,8 +330,8 @@ class WatchDog:
 
     def _bad(self, msg, off=0):
         full = 'line %d, char %d (byte %d): %s' % (
-            self._lineno + 1, off + 1,
-            self._charno + off + 1, msg,
+            self._lineno + 1, self._lindex + 1 + off,
+            self._charno + 1 + off, msg,
         )
         if not self._quiet:
             if self._strict:
@@ -339,22 +340,23 @@ class WatchDog:
             warnings.warn(full, ValidationWarning)
 
     def write(self, value):
-        value = b''.join([self._buffer, value])
         self._buffer.clear()
         i = 0
         j = 0
-        while True:
+        n = len(value)
+        while j < n:
             self._fp.write(value[i:j])
             i = j
             try:
                 j = value.index(self._eol, i) + len(self._eol)
             except ValueError:
-                break
-            if self._maxlen and j - i > self._maxlen:
+                j = n
+            if self._maxlen and j - i + self._lindex > self._maxlen:
                 # XXX: there may be multiple line exceeded warnings
                 # if one line is written with multiple calls to write()?
+                violation = self._maxlen - self._lindex + 1
                 self._bad('line limit exceeded', self._maxlen + 1)
-            if self._maxsiz and self._charno + j > self._maxsiz:
+            if self._maxsiz and j + self._charno > self._maxsiz:
                 violation = self._maxsiz - self._charno + 1
                 self._bad('message size limit exceeded', violation)
                 self._maxsiz = 0
@@ -366,7 +368,10 @@ class WatchDog:
                               'nor binarymime is set', k)
             self._lineno += 1
             self._charno += j - i
-        self._buffer.extend(value[i:])
+            self._lindex = 0
+        self._fp.write(value[i:])
+        self._lindex += len(value) - i
+        self._charno += len(value) - i
 
 # maple <- mapeol <= map EOL
 # note: we allow CR simply because that goes with
