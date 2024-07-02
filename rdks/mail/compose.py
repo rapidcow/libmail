@@ -96,6 +96,8 @@ def main(argv=None):
                         'plain SMTP (default), "starttls" for STARTTLS, '
                         '"smtps" for SSL)')
     # degree of annoyingness
+    parser.add_argument('--strict', action='store_true',
+                        help='raise error when weird stuff happens')
     parser.add_argument('--quiet', '-q', action='store_true',
                         help='disable logging; overrides -v')
     parser.add_argument('--verbose', '-v', action='count', default=0,
@@ -135,10 +137,17 @@ def _main(source, dest, args):
     seen = set()
     raw_items = {
         'options': {
-            # These all involve the word "line"
-            'maxlinelen': 998,
-            'linesep': '\r\n', # CRLF
-            # ESMTP capabilities
+            'linesep': '\r\n', # CRLF. the Internet standard.
+            # RFC 5321 2.1.1. RECOMMENDS 78 characters excluding CRLF
+            # RFC 5322 4.5.3.1.6. defines a hard limit of 1000 chars
+            'maxlinelen': 80,
+            # we will set this later; this is indeed 1000 by default,
+            # or 0 if we see one or more binary CTE.  if the user
+            # sets a value themselves (or a new standard that extends
+            # this limit with an extension) we won't try to mess
+            # with that.
+            'smtpline': None,
+            # ESMTP features/capabilities
             'smtpsize': 0, # unlimited
             'smtputf8': False,
             '8bitmime': False,
@@ -172,27 +181,9 @@ def _main(source, dest, args):
             if field not in raw_items:
                 raise ValueError('%s field not found' % (field,))
 
-        o = raw_items['options']
-        if args.save_options:
-            # those who use --save-options should know its consequences.
-            # i'm just gonna be extra harsh and always overwrite stuff
-            with open(args.save_options, 'w', encoding='ascii') as fp:
-                fp.write('# this file contains options computed ' + (
-                         'for %r' % (args.message,)
-                         if args.message != '-' else 'from stdin'))
-                if args.server:
-                    fp.write(',\n# catered to the smtp server %s'
-                             % (args.server,))
-                    if args.port:
-                        fp.write(' on port %d' % (args.port,))
-                fp.write('.\n')
-                w = rdks.list.writer(fp, text=True)
-                for k, v in o.items():
-                    w.write(k, ('off', 'on')[v] if isinstance(
-                                v, bool) else ELPAM[v] if k == 'linesep'
-                                else str(v))
         message = _parse_headers(reader.get_content(
-            raw_items['headers'], interpret_input=True), o)
+            raw_items['headers'], interpret_input=True),
+            raw_items['options'], args.strict)
         done = False
         with contextlib.ExitStack() as s:
             for critter in (
@@ -202,17 +193,41 @@ def _main(source, dest, args):
                     raw_items['content'], interpret_input=True)),
             ):
                 if not done:
-                    done = _set_content(message, critter, o)
+                    done = _set_content(
+                        message, critter, raw_items['options'])
                 if done:
                     try:
                         x = next(critter)
                     except StopIteration:
                         pass
                     else:
-                        raise critter.error(x.start.lineno,
-                                            'trailing content')
+                        raise critter.error(
+                            x.start.lineno, 'trailing content')
 
-    gen = email.generator.BytesGenerator(dest)
+    o = raw_items['options']
+    if o['smtpline'] is None:
+        o['smtpline'] = 1000
+    if args.save_options:
+        # those who use --save-options should know its consequences.
+        # i'm just gonna be extra harsh and always overwrite stuff
+        with open(args.save_options, 'w', encoding='ascii') as fp:
+            fp.write('# this file contains options computed ' + (
+                     'for %r' % (args.message,)
+                     if args.message != '-' else 'from stdin'))
+            if args.server:
+                fp.write(',\n# catered to the smtp server %s'
+                         % (args.server,))
+                if args.port:
+                    fp.write(' on port %d' % (args.port,))
+            fp.write('.\n')
+            w = rdks.list.writer(fp, text=True)
+            for k, v in o.items():
+                w.write(k, ('off', 'on')[v] if isinstance(
+                            v, bool) else ELPAM[v] if k == 'linesep'
+                            else str(v))
+
+    gen = email.generator.BytesGenerator(
+        WatchDog(dest, o, args.strict, args.quiet))
     gen.flatten(message)
 
 def capabilities(server, port, protocol):
@@ -241,6 +256,66 @@ def capabilities(server, port, protocol):
             _set_features(conn.esmtp_features)
 
     return options
+
+class ValidationWarning(UserWarning):
+    """the emil did not pass da vibe check :("""
+    pass
+
+class WatchDog:
+    """file object wrapper that haunts you at night"""
+
+    def __init__(self, wrappee, options, strict, quiet):
+        self._fp = wrappee
+        self._eol = options['linesep'].encode('ascii')
+        self._lineno = 0
+        self._charno = 0
+        self._maxlen = options['smtpline']
+        self._maxsiz = options['smtpsize']
+        self._8bit = options['8bitmime'] or options['binarymime']
+        self._strict = strict
+        self._quiet = quiet
+        self._buffer = bytearray()
+
+    def _bad(self, msg, off=0):
+        full = 'line %d, char %d (byte %d): %s' % (
+            self._lineno + 1, off + 1,
+            self._charno + off + 1, msg,
+        )
+        if not self._quiet:
+            if self._strict:
+                raise ValidationWarning(full)
+            import warnings
+            warnings.warn(full, ValidationWarning)
+
+    def write(self, value):
+        value = b''.join([self._buffer, value])
+        self._buffer.clear()
+        i = 0
+        j = 0
+        while True:
+            self._fp.write(value[i:j])
+            i = j
+            try:
+                j = value.index(self._eol, i) + len(self._eol)
+            except ValueError:
+                break
+            if self._maxlen and j - i > self._maxlen:
+                # XXX: there may be multiple line exceeded warnings
+                # if one line is written with multiple calls to write()?
+                self._bad('line limit exceeded', self._maxlen + 1)
+            if self._maxsiz and self._charno + j > self._maxsiz:
+                violation = self._maxsiz - self._charno + 1
+                self._bad('message size limit exceeded', violation)
+                self._maxsiz = 0
+            # XXX XXX: this is probably ridiculously slow
+            # but i want accurate char position so :ccccc
+            for k, b in enumerate(value[i:j]):
+                if not self._8bit and b & 0x80:
+                    self._bad('8th bit present when neither 8bitmime '
+                              'nor binarymime is set', k)
+            self._lineno += 1
+            self._charno += j - i
+        self._buffer.extend(value[i:])
 
 # maple <- mapeol <= map EOL
 # note: we allow CR simply because that goes with
@@ -285,7 +360,7 @@ def _set_options(options, r, x):
                 _check_redundancy(pair)
                 content = _chomp(pair.content)
                 field = pair.key.lower().decode('ascii')
-                if field in {'maxlinelen', 'smtpsize'}:
+                if field in {'maxlinelen', 'smtpline', 'smtpsize'}:
                     value = int(content.decode())
                 elif field == 'linesep':
                     name = _chomp(pair.content).lower()
@@ -303,7 +378,7 @@ def _set_options(options, r, x):
                             'invalid boolean: %r', name) from None
                 options[field] = value
 
-def _parse_headers(headers, o):
+def _parse_headers(headers, o, strict):
     # XXX: uhm, we should have at least 3 characters per line... right
     policy = email.policy.EmailPolicy(
         max_line_length = (max(1, o['maxlinelen'] - 2)
@@ -312,6 +387,7 @@ def _parse_headers(headers, o):
         utf8            = o['smtputf8'],
         cte_type        = ('8bit' if o['8bitmime'] or
                             o['binarymime'] else '7bit'),
+        raise_on_defect = strict,
     )
     parser = email.parser.BytesHeaderParser(policy=policy)
     return parser.parsebytes(headers)
@@ -378,6 +454,10 @@ def _set_content_from_node(message, reader, root, o):
                 encoding = message[header]
                 eparams = params
                 logger.debug('got params %r for cte %r', params, encoding)
+                # if the user uses the binary CTE, they probably
+                # know what they are doing (with BINARYMIME and all)
+                if encoding == 'binary' and o['smtpline'] is None:
+                    o['smtpline'] = 0
         elif key == b'including':
             multipart = True
             if pair.data is not None:
@@ -434,8 +514,11 @@ def _set_content_from_node(message, reader, root, o):
             try:
                 payload = root.data.decode('us-ascii', errors)
             except UnicodeDecodeError as e:
+                # surrogateescape should never fail.
+                # if it does it probably was something that claimed
+                # to be 7bit (ascii) yet contains nonzero 8th bit
                 raise reader.error(_begin_lineno(root),
-                    'failed to decode %s data', encoding) from e
+                    'invalid %s content', encoding) from e
         # otherwise we'll just pray that the input HAS been encoded... lol XD
         # (jk i just dont know what to do)
         else:
