@@ -909,7 +909,7 @@ class ConfigReader:
         # first line)
         last = pair
         value = pair.value
-        logger.debug('scanning for input in node(%r, %r)',
+        logger.debug('scanning for input in node(%r, %s)',
                      pair.key, _shorten(pair.value, 69))
         if (pair.key and pair.value and
             pair.value.startswith(b'<') and
@@ -956,7 +956,7 @@ class ConfigReader:
                             if logger.isEnabledFor(logging.DEBUG):
                                 logger.debug(
                                     'end of inline string prefixed with %r '
-                                    'at on line %d in node(%r, %r)',
+                                    'at on line %d in node(%r, %s)',
                                     prefix, rel_line, pair.key,
                                     _shorten(pair.value, 69))
                             rel_line -= 1
@@ -995,7 +995,7 @@ class ConfigReader:
                             if logger.isEnabledFor(logging.DEBUG):
                                 logger.debug(
                                     'end of inline string prefixed with %r '
-                                    'encountered at node(%r, %r)',
+                                    'encountered at node(%r, %s)',
                                     prefix, peek.key,
                                     _shorten(peek.value, 69))
                             self._lookahead = peek
