@@ -27,7 +27,7 @@ to get one such license for reference, see
 """
 
 __all__ = [
-    'ThreadIndex', 'FileTime', 'Header', 'Response',
+    'ThreadIndex', 'FileTime', 'Header', 'TimeDiff', 'Response',
 ]
 
 import base64
