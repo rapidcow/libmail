@@ -88,7 +88,7 @@ class TestInlineData(unittest.TestCase):
             b"foo barexactly\n",
             b'foo bar    "FOOBAR"\n',
             b"foo bar-and not\n",
-            b"foo bar ",
+            b"foo bar \n",
             b"foo baz.\n",
             b"(though foo baz should probably not be eaten)\n",
         ])
