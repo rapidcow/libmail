@@ -414,13 +414,13 @@ MABLE = {
     '👍'.encode('utf-8'): True,  # thumbs up
     '👎'.encode('utf-8'): False, # thumbs down
     # tip: use the android blob emoji font to tell them apart
-    '😆'.encode('utf-8'): MustBe(True),   ':D': MustBe(True),
-    '🙂'.encode('utf-8'): True,           ':)': True,
-    '😕'.encode('utf-8'): Maybe(True),    ':/': Maybe(True),
-    '😐'.encode('utf-8'): Maybe(True),    ':|': Maybe(False),
-    '😶'.encode('utf-8'): Maybe(False),   ': ': Maybe(False),
-    '🙁'.encode('utf-8'): False,          ':(': Maybe(False),
-    '😡'.encode('utf-8'): MustBe(False), '>:(': MustBe(False),
+    '😆'.encode('utf-8'): MustBe(True),   b':D': MustBe(True),
+    '🙂'.encode('utf-8'): True,           b':)': True,
+    '😕'.encode('utf-8'): Maybe(True),    b':/': Maybe(True),
+    '😐'.encode('utf-8'): Maybe(True),    b':|': Maybe(False),
+    '😶'.encode('utf-8'): Maybe(False),   b': ': Maybe(False),
+    '🙁'.encode('utf-8'): False,          b':(': Maybe(False),
+    '😡'.encode('utf-8'): MustBe(False), b'>:(': MustBe(False),
     # for no reason whatsoever let's throw in a kaomoji too
     '┐(￣。￣)┌'.encode('utf-8'): Maybe(False),
 }
@@ -794,7 +794,7 @@ def _set_pyparam(store, name, header, value, reader, pair, o):
                     store[key.decode('us-ascii')] = MABLE[val.lower()]
                 except KeyError as e:
                     raise reader.error(pair.start.lineno,
-                        'invalid boolean: %r') from e
+                        'invalid boolean: %r', val) from e
 
     else:
         raise reader.error(pair.start.lineno, '%s header does not have '
