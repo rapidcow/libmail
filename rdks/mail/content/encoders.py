@@ -4,7 +4,10 @@ import binascii
 import io
 import itertools
 
-__all__ = ['encode_qp', 'encode_base64']
+__all__ = [
+    'EncodingError', 'treol',
+    'encode_qp', 'encode_base64', 'encode_verbatim',
+]
 
 try:
     # added in python 3.10!!! :o
@@ -73,8 +76,18 @@ def _iter_lines(body):
         else:
             yield line, b''
 
+
 class EncodingError(ValueError):
     pass
+
+def treol(body, linesep=b'\r\n'):
+    """translate EOL uniformly to linesep"""
+    lines = []
+    for line, eol in _iter_lines(body):
+        lines.append(line)
+        if eol:
+            lines.append(linesep)
+    return MTSTR.join(lines)
 
 # characters always allowed by RFC 2045 6.7.2
 QP_INNER = tuple(
@@ -93,7 +106,21 @@ QP_FINAL = tuple(
 )
 
 # stolen from quopri.encode (native impl)
-def encode_qp(body, maxlinelen=78, linesep=b'\r\n', embed=True, wrap=True):
+def encode_qp(body, maxlinelen=80, linesep=b'\r\n', wrap=True, embed=None):
+    """do quoted-printable encoding as per RFC 2045 6.7.
+
+    maxlinelen - line limit INCLUDING linesep (EOL)
+                 (defaults to 78+2 = 80 as per RFC recommendation)
+    linesep - end-of-line marker (EOL), can be any one of CR/LF/CRLF
+              (defaults to CRLF)
+    wrap - always start on a new line after every CR/LF/CRLF sequence
+           (defaults to True)
+    embed - simply write linesep when EOL matches it; set to False if you
+            really care about byte-for-byte accuracy
+            (defaults to whatever wrap is)
+    """
+    if embed is None:
+        embed = wrap
     buffer = io.BytesIO()
     maxbearlen = maxlinelen - len(linesep)
     softsep = b'=' + linesep
@@ -101,7 +128,7 @@ def encode_qp(body, maxlinelen=78, linesep=b'\r\n', embed=True, wrap=True):
     if maxbearlen < 1:
         raise EncodingError('quoted-printable encoding needs at least '
                             '1 character per line minus linesep')
-    if not embed:
+    if not wrap:
         _encode_qp_line(buffer, body, False, maxbearlen, linesep)
     else:
         nextsep = MTSTR
@@ -109,7 +136,7 @@ def encode_qp(body, maxlinelen=78, linesep=b'\r\n', embed=True, wrap=True):
         lines = peeker(_iter_lines(body))
         for line, eol in lines:
             buffer.write(nextsep)
-            if eol == linesep and wrap:
+            if eol == linesep and embed:
                 _encode_qp_line(buffer, line, False,
                                 maxbearlen, linesep)
                 nextsep = linesep
@@ -161,12 +188,75 @@ def _encode_qp_bytes(line, sentinel):
 
 # the thing about base64 (though not mentioned in RFC?)
 # is that every line is expected to be a decodable "chunk",
-# so we can't wrap at arbitrary digits
-def encode_base64(body, maxlinelen=78, linesep=b'\r\n'):
-    maxbearlen = maxlinelen - len(linesep)
+# so we can't wrap at arbitrary digits (XXX: probably...?)
+def encode_base64(body, maxlinelen=None, linesep=b'\r\n'):
+    """do base64 encoding.  this is just a pretty wrapper of
+    binascii.b2a_base64().  should be RFC 2045 6.8 compliant :/
+
+    maxlinelen - line length limit INCLUDING linesep
+                 (default 19x4 = 76 plus len(linesep), consistent with
+                  the width that python's stdlib seems to use.
+
+                  if len(linesep) for some unholy reason exceeds 4,
+                  this decreases correspondingly by multiples of 4
+                  so that the total line length doesn't exceed 80.)
+
+                 if this is 0, no line wrapping is done.
+
+                 note that if you pass a maxlinelen that is not a
+                 multiple of 4 IT WOULD FILL UP THE WHOLE SPACE.
+                 round it to the nearest multiple of 4 if you want
+                 each line to be decodable on their own.
+    linesep - line separator, appende to the very end.
+    """
+    itsy = binascii.b2a_base64(body, newline=False)
+    if maxlinelen is None:
+        permitted = 80 - len(linesep)
+        maxbearlen = permitted // 4 * 4 or permitted
+    elif maxlinelen:
+        maxbearlen = maxlinelen - len(linesep)
+    else:
+        return itsy
     if maxbearlen < 1:
         raise EncodingError('base64 encoding needs at least '
                             '1 character per line minus linesep')
-    itsy = binascii.b2a_base64(body, newline=False)
     bitsy = linesep.join(map(bytes, grouper(itsy, maxbearlen)))
     return bitsy
+
+# 7bit and 8bit content are transferred as-is so this isn't
+# really encoding anything thing. HOWEVER, we still need to
+# make sure check for lone CR/LF and raise an error for any
+#
+# this is due to RFC 5322 2.3 and 3.5, which explicitly forbids
+# CR and LF appearing in the message body. the rationale, i recall,
+# is something along the lines of 7bit / 8bit encoding representing
+# text content, so CRLF represents the canonical end-of-line marker.
+# (CRLF isn't meant to be taken more literally than that, since in text
+#  there are... lines. and CR/LF/CRLF all simply serve to separate them)
+#
+# this process is generalized to any linesep, though the default
+# should be RFC compliant... i hope.
+#
+def encode_verbatim(body, maxlinelen=80, linesep=b'\r\n'):
+    """Encode 7bit / 8bit content.
+
+    This function only checks if everything is sanitized
+    (i.e. each line is ONLY delimited by linesep and not any
+    other CRLF sequence).  for EOL translation which most programs
+    perform implicitly, see treol().
+    """
+    # since python always splits on occurrences of CR/LF, we
+    # just check if EOL ever mismatches the given linesep :D
+    #
+    # note that since we are bailing out of the function on
+    # the first error, i is always going to count the number
+    # of linesep
+    for i, (line, eol) in enumerate(_iter_lines(body)):
+        if eol and eol != linesep:
+            raise EncodingError('misplaced CRLF sequence %r '
+                                'found on line %d' % (eol, i + 1))
+        linelen = len(line) + len(eol)
+        if maxlinelen and linelen > maxlinelen:
+            raise EncodingError('line limit exceeded (%d > %d)'
+                                % (linelen, maxlinelen))
+    return body

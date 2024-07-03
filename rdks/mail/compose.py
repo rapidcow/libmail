@@ -578,24 +578,50 @@ def _set_content_from_node(message, reader, root, o):
         if root.data is None:
             raise reader.error(root.start.lineno,
                 'non-multipart messages must have input data')
+        eol = eparams['linesep'] = o['linesep'].encode('ascii')
+        eparams.setdefault('maxlinelen', o['maxlinelen'])
+        # translate EOL for all inline text strings
+        do_treol = eparams.pop('treol', not root.has_input() and
+                               truetype.startswith('text/'))
+        logger.debug('do_treol = %r for content of type %s',
+                     do_treol, truetype)
+        data = mime.treol(root.data, eol) if do_treol else root.data
         if encoding == 'quoted-printable':
-            eparams.setdefault('maxlinelen', o['maxlinelen'])
-            eparams.setdefault('embed', truetype.startswith('text/'))
+            # don't set embed and let encode_qp() figure it out
+            # it'd be more interesting to pretend that this argument
+            # behaves precisely like binary=None in binascii.b2a_qp(),
+            # but well.... :)
+            eparams.setdefault('wrap', truetype.startswith('text/'))
             logger.info('encode %s content with QP using params %r',
                          truetype, eparams)
-            payload = mime.encode_qp(root.data, **eparams)
+            try:
+                payload = mime.encode_qp(data, **eparams)
+            except mime.EncodingError as e:
+                raise reader.error(root.start.lineno,
+                    'failed to encode QP') from e
         elif encoding == 'base64':
-            minlen = len(o['linesep'].encode('us-ascii'))
             chunked = o['maxlinelen'] // 4 * 4
+            eparams.setdefault('maxlinelen', max(len(eol), chunked))
+            # to make implementors' lives easier, tell them where
+            # the final line ends by default (maybe? it's not really
+            # needed for multipart, but it'd be certainly appreciated
+            # in like e-mails with only one part)
+            chomp = eparams.pop('chomp', False)
             logger.info('encode %s content with base64 using params %r',
-                         truetype, eparams)
-            eparams.setdefault('maxlinelen', max(minlen, chunked))
-            # not a real option so we will deal with it here
-            addeol = eparams.pop('addeol', False)
-            payload = mime.encode_base64(root.data, **eparams)
-            if addeol:
-                payload += o['linesep'].encode('us-ascii')
+                        truetype, eparams)
+            try:
+                payload = mime.encode_base64(data, **eparams)
+            except mime.EncodingError:
+                raise reader.error(root.start.lineno,
+                    'failed to encode base64') from e
+            if not chomp:
+                payload += eol
         elif encoding in {'7bit', '8bit'}:
+            try:
+                payload = mime.encode_verbatim(data, **eparams)
+            except mime.EncodingError as e:
+                raise reader.error(root.start.lineno,
+                    'failed to validate %s', encoding) from e
             errors = 'surrogateescpape' if encoding == '8bit' else 'strict'
             try:
                 payload = root.data.decode('us-ascii', errors)
@@ -739,14 +765,14 @@ def _set_pyparam(store, name, header, value, reader, pair, o):
 
     if name == 'encoding':
         ivalid = {b'maxlinelen'}
-        bvalid = set()
+        bvalid = {b'treol'}
         vlower = value.lower()
 
         if vlower == 'quoted-printable':
             bvalid.add(b'embed')
             bvalid.add(b'wrap')
         elif vlower == 'base64':
-            bvalid.add(b'addeol')
+            bvalid.add(b'chomp')
 
         for item in todo:
             # NOTE: we are splitting the param ourselves so
