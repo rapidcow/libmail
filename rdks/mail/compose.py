@@ -417,9 +417,9 @@ MABLE = {
     '😆'.encode('utf-8'): MustBe(True),   b':D': MustBe(True),
     '🙂'.encode('utf-8'): True,           b':)': True,
     '😕'.encode('utf-8'): Maybe(True),    b':/': Maybe(True),
-    '😐'.encode('utf-8'): Maybe(True),    b':|': Maybe(False),
+    '😐'.encode('utf-8'): Maybe(False),   b':|': Maybe(False),
     '😶'.encode('utf-8'): Maybe(False),   b': ': Maybe(False),
-    '🙁'.encode('utf-8'): False,          b':(': Maybe(False),
+    '🙁'.encode('utf-8'): False,          b':(': False,
     '😡'.encode('utf-8'): MustBe(False), b'>:(': MustBe(False),
     # for no reason whatsoever let's throw in a kaomoji too
     '┐(￣。￣)┌'.encode('utf-8'): Maybe(False),
