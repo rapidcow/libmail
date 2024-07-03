@@ -102,7 +102,7 @@ def encode_qp(body, maxlinelen=78, linesep=b'\r\n', embed=True, wrap=True):
         raise EncodingError('quoted-printable encoding needs at least '
                             '1 character per line minus linesep')
     if not embed:
-        _encode_qp_line(buffer, body, False, maxlinelen, linesep)
+        _encode_qp_line(buffer, body, False, maxbearlen, linesep)
     else:
         nextsep = MTSTR
         lastsep = MTSTR
