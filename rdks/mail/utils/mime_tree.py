@@ -66,6 +66,7 @@ def _format_mutt(i, msg):
     desc = (msg.get('Content-Description')
             or msg.get_param('filename', header='Content-Disposition')
             or msg.get_param('name') or '<no description>')
+    shortdesc = desc.splitlines()[0][:40]
     mimetype = '/'.join([msg.get_content_maintype()[:7],
                          msg.get_content_subtype()[:10]])
     if msg.get_content_type() == 'message/delivery-status':
@@ -74,7 +75,7 @@ def _format_mutt(i, msg):
         inner_first, inner_rest = '├─> ', '│   '
         outer_first, outer_rest = '└─> ', '    '
         i += 1
-        yield i, f'[{mimetype}]', '-', desc
+        yield i, f'[{mimetype}]', '-', shortdesc
         for child in payload[:-1]:
             prefix = inner_first
             for i, content, dspo, desc in _format_mutt(i, child):
@@ -94,7 +95,7 @@ def _format_mutt(i, msg):
         dspo = ('I' if dsps == 'inline' else
                 'A' if dsps == 'attachment' else '?')
         size = humanize.naturalsize(len(payload))
-        yield i + 1, f'[{mimetype}, {cte}, {size}]', dspo, desc
+        yield i + 1, f'[{mimetype}, {cte}, {size}]', dspo, shortdesc
 
 if __name__ == '__main__':
     sys.exit(main())
