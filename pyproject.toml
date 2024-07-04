@@ -21,9 +21,13 @@ dependencies = [
 # "rdks-list==0.0",
 ]
 
+[project.optional-dependencies]
+tree = ["humanize~=4.9"]
+
 [project.scripts]
 parse-thread-index = "rdks.mail.utils.parse_thread_index:main"
 "compose.py" = "rdks.mail.compose:main"
+mime-tree = "rdks.mail.utils.mime_tree:main"
 
 [tool.setuptools.packages.find]
 namespaces = true

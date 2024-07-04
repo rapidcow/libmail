@@ -1,17 +1,28 @@
 rdks.mail - e-mail utilities
 ----------------------------
 
-at the moment it contains two modules and one BIG CLI program!
+at the moment it contains two modules, some small utilities,
+and one BIG CLI program!
 
 modules:
 
   * outlook:  deals with the (annoying) Thread-Index header.
-    - utils.parse_thread_index:  CLI for the outlook module.
-        (run with: `python -m rdks.mail.utils.parse_thread_index`
-         or simply `parse-thread-index`)
-
   * content:  deals with RFC 1521/2045 content transfer encodings
               (currently only the encoders are implemented).
+
+utilities:
+
+  * parse-thread-index:  CLI for the outlook module.
+      run with: `python -m rdks.mail.utils.parse_thread_index`
+      or simply `parse-thread-index` or navigate to the utils/
+      directory and run `./parse_thread_index.py`
+
+  * mail-tree:  cheap thing that replicates Mutt's view-attachment output
+      (i'm surprised there isn't an easy cli that does this =.=)
+      depends on humanize <https://pypi.org/project/humanize/>
+        (install with `pip install humanize` or `pip install .[tree]`)
+      optionally wcswidth <https://pypi.org/project/wcwidth/>
+        (install with `pip` similarly; this is cool if you deal with CJK)
 
 program!
 
