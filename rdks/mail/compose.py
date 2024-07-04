@@ -622,7 +622,7 @@ def _set_content_from_node(message, reader, root, o):
             except mime.EncodingError as e:
                 raise reader.error(root.start.lineno,
                     'failed to validate %s', encoding) from e
-            errors = 'surrogateescpape' if encoding == '8bit' else 'strict'
+            errors = 'surrogateescape' if encoding == '8bit' else 'strict'
             try:
                 payload = root.data.decode('us-ascii', errors)
             except UnicodeDecodeError as e:
