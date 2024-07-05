@@ -657,20 +657,22 @@ def _set_param(message, header, name, reader, pair):
             '%s parameter (%s)', header, verb)
     if pair.data is not None:
         raise reader.error(pair.start.lineno,
-            'data is invalid in a %s parameter (%s)',
+            'input string is invalid in a %s parameter (%s)',
             header, verb)
-    reeder = reader.inner_rest_reader(pair)
+    reeder = reader.inner_rest_reader(pair, interpret_input=True)
 
     # xxx: i'm too lazy to do this now, let the stop iteration
     # error and stuff propogate...
     pear = next(reeder)
-    if not (pear.key and pear.value):
+    # allow use of syntax like with creation-date < path/to/btime
+    data = pear.content
+    if not (pear.key and data):
         raise reader.error(pair.start.lineno,
             'missing param and/or value in %s parameters (%s)',
             header, verb)
 
     param = pear.key.decode('us-ascii')
-    value = pear.value.decode('utf-8')
+    value = data.decode('utf-8')
 
     try:
         nextpear = next(reeder)
