@@ -72,7 +72,7 @@ class ThreadIndex(object):
     # but if you are here, it should be evident
     # where the keyword args go...
     @classmethod
-    def from_mime(cls, value, **kwargs):
+    def from_str(cls, value, **kwargs):
         rawr = base64.b64decode(value)
         return cls.from_bytes(rawr, **kwargs)
 

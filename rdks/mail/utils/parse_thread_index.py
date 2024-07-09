@@ -22,7 +22,7 @@ def main(argv=None):
     parser.add_argument('value', help='base64 string from the header')
     args = parser.parse_args(argv)
 
-    ti = ThreadIndex.from_mime(args.value, old_filetime=args.use_old_filetime)
+    ti = ThreadIndex.from_str(args.value, old_filetime=args.use_old_filetime)
     decoded = bytes(ti)
     print('Decoded:\t', decoded[0:6].hex(), decoded[6:22].hex(),
         ' '.join(
