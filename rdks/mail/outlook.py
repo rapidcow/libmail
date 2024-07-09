@@ -64,7 +64,7 @@ class ThreadIndex(object):
     They are accessible through the header as a Header object
     and responses as a tuple of Response objects.
     """
-    def __init__(self, header, responses):
+    def __init__(self, header, responses=()):
         self._header = header
         self._responses = tuple(responses)
 
