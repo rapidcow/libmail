@@ -135,6 +135,7 @@ class FileTime(object):
 
     # FILETIME counts from Jan 01 1601 (why...)
     BASE = datetime.datetime(1601, 1, 1)
+    BASE_UTC = BASE.replace(tzinfo=datetime.timezone.utc)
     # ... in increments of 1/10^7 of a second (WHY??!?)
     PREC = 10000000
 
@@ -216,14 +217,16 @@ class FileTime(object):
         origin = cls.UNIX * cls.PREC
         return cls(scaled + origin)
 
-    def as_datetime(self):
-        """Convert to a Python datetime.  Always returns a naive
-        datetime object computed directly from the offset."""
+    def as_datetime(self, with_tz=False):
+        """Convert to a Python datetime.  Return a datetime object
+        computed directly from the offset, optionally with tzinfo
+        set to datetime.timezone.utc if with_tz is True."""
         seconds, remainder = divmod(self.ticks, self.PREC)
         # discard that 1/10 of a microsecond we can't make use of
         remainder //= 10
         offset = datetime.timedelta(seconds=seconds, microseconds=remainder)
-        return self.BASE + offset
+        base = self.BASE_UTC if with_tz else self.BASE
+        return base + offset
 
     @classmethod
     def from_datetime(cls, dt):
