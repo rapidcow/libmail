@@ -17,7 +17,8 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser(
         description="dump info about microsoft exchange's thread index")
-    parser.add_argument('--use-old-filetime', action='store_true',
+    # typing this whole name every time is killing my fingers...
+    parser.add_argument('--use-old-filetime', '-T', action='store_true',
                         help='enable old Exchange FILETIME format')
     parser.add_argument('value', help='base64 string from the header')
     args = parser.parse_args(argv)

@@ -128,7 +128,7 @@ class TestInlineData(unittest.TestCase):
 class TestOutlineData(unittest.TestCase):
     def test_header_inputs(self):
         message = compose('message', 'output',
-            now=b'Date: Mon, 01 Jul 2024 12:55:37 +0800',
+            now=b'Mon, 01 Jul 2024 12:55:37 +0800',
             real_recip=b'nick 2sbox.com <nick@2sbox.com>',
             test_recip=b'<eyzmeng@gmail.com>',
             body=b'yo are you frfr\n',
@@ -146,7 +146,7 @@ class TestOutlineData(unittest.TestCase):
             ))
 
         self.assertEqual(message,
-            b"Date: Date: Mon, 01 Jul 2024 12:55:37 +0800\n"
+            b"Date: Mon, 01 Jul 2024 12:55:37 +0800\n"
             b"From: Ethan Meng <ethan@yizz.me>\n"
             b"To: <eyzmeng@gmail.com>\n"
             b"MIME-Version: 1.0\n"

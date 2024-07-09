@@ -19,11 +19,7 @@ outlook.py is free software: you may redistribute it and/or
 modify it under the terms of GNU GPL version 3 or above.
 to get one such license for reference, see
 <https://www.gnu.org/licenses/>.
-
-compose.py is free software: you may redistribute it and/or
-modify it under the terms of GNU GPL version 3 or above.
-to get one such license for reference, see
-<https://www.gnu.org/licenses/>.
+there is NO WARRANTY, to the extent permitted by law.
 """
 
 __all__ = [
