@@ -105,6 +105,12 @@ class ThreadIndex(object):
         """Response Level as a tuple of Response objects."""
         return self._responses
 
+    def __eq__(self, other):
+        if isinstance(other, ThreadIndex):
+            return (self.header == other.header and
+                    self.responses == other.responses)
+        return NotImplemented
+
     def __hash__(self):
         return hash((self.header, self.responses))
 
@@ -160,6 +166,11 @@ class FileTime(object):
 
     def __repr__(self):
         return '%s(%r)' % (type(self).__qualname__, self.ticks)
+
+    def __eq__(self, other):
+        if isinstance(other, FileTime):
+            return self.ticks == other.ticks
+        return NotImplemented
 
     def __hash__(self):
         return hash(self.ticks)
@@ -292,6 +303,12 @@ class Header(object):
         qname = type(self).__qualname__
         return '%s(%r, %r)' % (qname, self.date, self.guid)
 
+    def __eq__(self, other):
+        if isinstance(other, Header):
+            return (self.date == other.date and
+                    self.guid == other.guid)
+        return NotImplemented
+
     def __hash__(self):
         return hash((self.date, self.guid))
 
@@ -357,6 +374,11 @@ class TimeDiff(object):
     def __repr__(self):
         return '%s(%r, %r)' % (type(self).__qualname__, self.sig, self.value)
 
+    def __eq__(self, other):
+        if isinstance(other, TimeDiff):
+            return self.sig == other.sig and self.value == other.value
+        return NotImplemented
+
     def __hash__(self):
         return hash((self.sig, self.value))
 
@@ -417,6 +439,11 @@ class Response(object):
     def __repr__(self):
         qname = type(self).__qualname__
         return '%s(%r, %r)' % (qname, self.delta, self.random)
+
+    def __eq__(self, other):
+        if isinstance(other, Response):
+            return self.delta == other.delta and self.random == other.random
+        return NotImplemented
 
     def __hash__(self):
         return hash((self.delta, self.random))
