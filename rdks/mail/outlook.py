@@ -195,12 +195,21 @@ class FileTime(object):
 
     def as_unix(self, scale=100 * PREC):
         """Convert to Unix epoch in nanoseconds, divided by 'scale'.
-        By default the scale is 100*PREC so that the epoch is in seconds.
-        If you want Microsoft's weird scale, pass in 100.
+        By default the scale is 10^9 so that the epoch is in seconds.
+        If you want the original weird scale, pass in 100.
+
+        NOTE: This method only uses integer division, so the
+        computed epoch is always TRUNCATED.*  To get the fractional
+        part, you would have to divide the exact number of ticks
+        by 10^7 with something like this: self.as_unix(100) * 1e-7.
 
         P.S. try to make scale a multiple of 100, but if not possible,
         don't make the scale too big (> 1/100th of max int), or else
         multiplication might explode (?)
+
+        * well, technically, rounded towards infinity.  But that
+          shouldn't make a difference unless you are dealing with
+          time around, say, the medieval era.
         """
         origin = self.UNIX * self.PREC
         epoch = self.ticks - origin
@@ -233,9 +242,8 @@ class FileTime(object):
         computed directly from the offset, optionally with tzinfo
         set to datetime.timezone.utc if with_tz is True."""
         seconds, remainder = divmod(self.ticks, self.PREC)
-        # discard that 1/10 of a microsecond we can't make use of
-        remainder //= 10
-        offset = datetime.timedelta(seconds=seconds, microseconds=remainder)
+        musecs = remainder // 10
+        offset = datetime.timedelta(seconds=seconds, microseconds=musecs)
         base = self.BASE_UTC if with_tz else self.BASE
         return base + offset
 
