@@ -225,10 +225,114 @@ class TestContentBody(unittest.TestCase):
         """maxlinelen (7bit)"""
 
     def test_qp_encoding(self):
-        """maxlinelen, wrap, embed"""
+        """maxlinelen, wrap, embed, protect"""
+        message = compose('message', 'output',
+            message=(
+                b"options\n"
+                b"  linesep CRLF\n"
+                b"headers\n"
+                b"content\n"
+                b"  text/plain << |\n"
+                b"    | hello\n"
+                b"    with charset us-ascii\n"
+                b"    of encoding quoted-printable\n"
+            ))
+        self.assertEqual(message.decode('ascii'),
+            'MIME-Version: 1.0\r\n'
+            'Content-Type: text/plain; charset="us-ascii"\r\n'
+            'Content-Transfer-Encoding: quoted-printable\r\n'
+            '\r\n'
+            'hello=\r\n')
+
+        self.maxDiff = 800
+        message = compose('message', 'output',
+            message=(
+                b"options\n"
+                b"  linesep CRLF\n"
+                b"headers\n"
+                b"content\n"
+                b"  multipart/alternative\n"
+                # i cant spel my name :c
+                b"    with boundary --EtahN==mmovo\n"
+                b"    including\n"
+                b"      text/plain << |\n"
+                b"        | hello\n"
+                b"        with charset us-ascii\n"
+                b"        of encoding quoted-printable\n"
+                b"      text/html << |\n"
+                b"        | <p>hello</p>\n"
+                b"        |\n"
+                b"        with charset iso-8859-1\n"
+                b"        of encoding quoted-printable\n"
+            ))
+        self.assertEqual(message.decode('ascii'),
+            'MIME-Version: 1.0\r\n'
+            'Content-Type: multipart/alternative; boundary="--EtahN==mmovo"'
+            '\r\n\r\n'
+            '----EtahN==mmovo\r\n'
+            'Content-Type: text/plain; charset="us-ascii"\r\n'
+            'Content-Transfer-Encoding: quoted-printable\r\n\r\n'
+            'hello'
+            '\r\n----EtahN==mmovo\r\n'
+            'Content-Type: text/html; charset="iso-8859-1"\r\n'
+            'Content-Transfer-Encoding: quoted-printable\r\n\r\n'
+            '<p>hello</p>=0A'
+            '\r\n----EtahN==mmovo--\r\n')
 
     def test_base64_encoding(self):
         """maxlinelen, and idk"""
+        s1 = b'\x45\x74\x68\x61\x6e\x21'
+        s2 = b'\xe4\xbb\xa5\xe6\xad\xa3'
+        message = compose('message', 'output',
+            ethan=s1,
+            message=(
+                b"options\n"
+                b"  linesep CRLF\n"
+                b"headers\n"
+                b"content\n"
+                b"  text/plain < ethan\n"
+                b"    with charset us-ascii\n"
+                b"    of encoding base64\n"
+            ))
+
+        self.assertEqual(message.decode('ascii'),
+            'MIME-Version: 1.0\r\n'
+            'Content-Type: text/plain; charset="us-ascii"\r\n'
+            'Content-Transfer-Encoding: base64\r\n\r\n'
+            'RXRoYW4h'
+            '\r\n')
+
+        message = compose('message', 'output',
+            ethan=s2,
+            message=(
+                b"options\n"
+                b"  linesep CRLF\n"
+                b"headers\n"
+                b"content\n"
+                b"  multipart/related\n"
+                b"    with boundary ==yiPPEEThan==\n"
+                b"    including\n"
+                b"      text/plain < ethan\n"
+                b"        with charset utf-8\n"
+                b"        of encoding base64\n"
+                b"          where chomp = no\n"
+                b"      application/octet-stream < ethan\n"
+                b"        of encoding base64\n"
+            ))
+
+        self.assertEqual(message.decode('ascii'),
+            'MIME-Version: 1.0\r\n'
+            'Content-Type: multipart/related; boundary="==yiPPEEThan=="'
+            '\r\n\r\n'
+            '--==yiPPEEThan==\r\n'
+            'Content-Type: text/plain; charset="utf-8"\r\n'
+            'Content-Transfer-Encoding: base64\r\n\r\n'
+            '5Lul5q2j\r\n'
+            '\r\n--==yiPPEEThan==\r\n'
+            'Content-Type: application/octet-stream\r\n'
+            'Content-Transfer-Encoding: base64\r\n\r\n'
+            '5Lul5q2j'
+            '\r\n--==yiPPEEThan==--\r\n')
 
 if __name__ == '__main__':
     unittest.main()

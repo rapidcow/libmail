@@ -11,5 +11,5 @@ though tbh this should be the entirety of it.
    :maxdepth: 1
    :caption: Packages
 
-   headers/index.rst
    content/index.rst
+   headers/index.rst

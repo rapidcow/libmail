@@ -80,7 +80,7 @@ class ContentManager:
         linesep = message.policy.linesep.encode('ascii')
         maxbarelen = message.policy.max_line_length
         maxlinelen = maxbarelen + len(linesep) if maxbarelen else 0
-        return self.decode_body(bpayload, cte,
+        return self.decode_body(message, bpayload, cte,
             maxlinelen=maxlinelen, linesep=linesep)
 
     def set_content(self, message, content, *args,
@@ -179,16 +179,30 @@ class ContentManager:
                         mimetype=None, charset=None, *,
                         cte=None, treol=None, fixeol=None,
                         linesep=None, **enc_params):
-        eff_cte = (cte or '7bit').lower()
+        # XXX XXX: praying that no one uses this in a try-except block....
+        eff_cte = (cte if cte is not None else '7bit').lower()
         charset = get_charset(charset)
+        if mimetype is None:
+            # be a bit brutal if the message was multi-part
+            # we don't want to mess up generator logic...
+            if message.is_multipart():
+                del message['Content-Type']
+            if charset is not None:
+                set_header(message, 'Content-Type', 'text/plain')
+                message.set_param('charset', charset, replace=True)
+        else:
+            reset_header(message, 'Content-Type', mimetype)
+            if charset is not None:
+                message.set_param('charset', charset, replace=True)
         # we keep the linesep to ourselves for EOL translation.
         rfc_eol = message.policy.linesep.encode('ascii')
         enc_params['linesep'] = rfc_eol
         maxbarelen = message.policy.max_line_length
         maxlinelen = maxbarelen + len(rfc_eol) if maxbarelen else 0
         if treol is None:
-            # disable treol for base64 by default
-            treol = eff_cte != 'base64'
+            # disable treol for base64 and anything non-text by default
+            treol = eff_cte != 'base64' or \
+                message.get_content_maintype() != 'text'
         if fixeol is None:
             fixeol = treol
         if treol:
@@ -198,80 +212,79 @@ class ContentManager:
         # We will not reinforce maxuserlen < policy.max_line_length
         # since it can be useful to treat policy's as an advised limit
         # and impose a global max line limit elsewhere (like the
-        # smtplinelen option in compose.py)
+        # smtpline option in compose.py)
         maxuserlen = enc_params.setdefault('maxlinelen', maxlinelen)
-        encoded = self.encode_body(content, eff_cte, **enc_params)
-        was_multipart = message.is_multipart()
+        encoded = self.encode_body(message, content, eff_cte, **enc_params)
         message.set_payload(encoded.decode('ascii', 'surrogateescape'))
-        if mimetype is None:
-            # be a bit brutal if the message was multi-part
-            # we don't want to mess up generator logic...
-            if was_multipart:
-                del message['Content-Type']
-            if charset is not None:
-                set_header(message, 'Content-Type', 'text/plain')
-                message.set_param('charset', charset, replace=True)
-        else:
-            reset_header(message, 'Content-Type', mimetype)
-            if charset is not None:
-                message.set_param('charset', charset, replace=True)
         if cte is None:
             del message['Content-Transfer-Encoding']
         else:
             reset_header(message, 'Content-Transfer-Encoding', cte)
         # XXX: nothing meaningful i can return :(
 
-    def decode_body(self, body, cte, *, maxlinelen, linesep, **kwds):
+    def decode_body(self, message, body, cte, *, maxlinelen, linesep, **kwds):
         decoder_name = 'decode_%s' % (cte.lower().replace('-', '_'),)
         if hasattr(self, decoder_name):
-            return getattr(self, decoder_name)(body,
+            return getattr(self, decoder_name)(message, body,
                 maxlinelen=maxlinelen, linesep=linesep, **kwds)
         raise ValueError('I do not know how to decode %s' % (cte,))
 
-    def encode_body(self, body, cte, *, maxlinelen, linesep, **kwds):
+    def encode_body(self, message, body, cte, *, maxlinelen, linesep, **kwds):
         encoder_name = 'encode_%s' % (cte.lower().replace('-', '_'),)
         if hasattr(self, encoder_name):
-            return getattr(self, encoder_name)(body, **kwds,
-                maxlinelen=maxlinelen, linesep=linesep)
+            return getattr(self, encoder_name)(message, body,
+                maxlinelen=maxlinelen, linesep=linesep, **kwds)
         raise ValueError('I do not know how to encode %s' % (cte,))
 
-    def decode_7bit(self, body, *, maxlinelen, linesep):
+    def decode_7bit(self, message, body, *, maxlinelen, linesep):
         return decoders.decode_verbatim(body,
             maxlinelen=maxlinelen, linesep=linesep,
             canonical_linesep=b'\n', ascii=True)
 
-    def decode_8bit(self, body, *, maxlinelen, linesep):
+    def decode_8bit(self, message, body, *, maxlinelen, linesep):
         return decoders.decode_verbatim(body,
             maxlinelen=maxlinelen, linesep=linesep,
             canonical_linesep=b'\n')
 
-    def decode_quoted_printable(self, body, *, maxlinelen, linesep):
+    def decode_quoted_printable(self, message, body, *,
+            maxlinelen, linesep):
         return decoders.decode_qp(body,
             maxlinelen=maxlinelen, linesep=linesep,
             canonical_linesep=b'\n')
 
-    def decode_base64(self, body, *, maxlinelen, linesep):
+    def decode_base64(self, message, body, *, maxlinelen, linesep):
         return decoders.decode_base64(body,
             maxlinelen=maxlinelen, linesep=linesep,
             canonical_linesep=b'\n')
 
-    def encode_7bit(self, body, *, maxlinelen, linesep):
+    def encode_7bit(self, message, body, *, maxlinelen, linesep):
         return encoders.encode_verbatim(body,
             maxlinelen=maxlinelen, linesep=linesep,
             canonical_linesep=b'\n', ascii=True)
 
-    def encode_8bit(self, body, *, maxlinelen, linesep):
+    def encode_8bit(self, message, body, *, maxlinelen, linesep):
         return encoders.encode_verbatim(body,
             maxlinelen=maxlinelen, linesep=linesep,
             canonical_linesep=b'\n')
 
-    def encode_quoted_printable(self, body, *,
-            maxlinelen, linesep, wrap=True, embed=None):
+    def encode_quoted_printable(self, message, body, *,
+            maxlinelen, linesep, wrap=None, embed=None, protect=True):
+        # this is purely my subjective taste... if you don't like it,
+        # change it!  but make sure to respect the user's choices :)
+        maintype = message.get_content_maintype()
+        if wrap is None:
+            # application can sometimes be partially text!
+            # i'd give it the benefit of the doubt....
+            wrap = maintype in {'text', 'application'}
+        if embed is None:
+            embed = maintype == 'text'
         return encoders.encode_qp(body,
             maxlinelen=maxlinelen, linesep=linesep,
-            canonical_linesep=b'\n', wrap=wrap, embed=embed)
+            canonical_linesep=b'\n', wrap=wrap, embed=embed,
+            protect=protect)
 
-    def encode_base64(self, body, *, maxlinelen, linesep, chomp=False):
+    def encode_base64(self, message, body, *,
+            maxlinelen, linesep, chomp=False):
         return encoders.encode_base64(body,
             maxlinelen=maxlinelen, linesep=linesep,
             canonical_linesep=b'\n') + (b'' if chomp else linesep)

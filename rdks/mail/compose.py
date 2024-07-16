@@ -497,13 +497,13 @@ def _set_content(message, reader, o):
             len(root.rest), 's' * (len(root.rest) != 1),
         )
     message['MIME-Version'] = '1.0'
-    _set_content_from_node(message, reader, root, o)
+    _set_content_from_node(message, reader, root, o, outer=True)
 
 PARAMHEAD_VERBS = {b'with', b'where'}
 BASICPART_VERBS = PARAMHEAD_VERBS | {b'of'}
 MULTIPART_VERBS = BASICPART_VERBS | {b'preamble', b'epilogue', b'including'}
 
-def _set_content_from_node(message, reader, root, o):
+def _set_content_from_node(message, reader, root, o, outer=False):
     mimetype = root.key.decode('us-ascii')
     message['Content-Type'] = mimetype
     multipart = False
@@ -595,6 +595,7 @@ def _set_content_from_node(message, reader, root, o):
             # behaves precisely like binary=None in binascii.b2a_qp(),
             # but well.... :)
             eparams.setdefault('wrap', truetype.startswith('text/'))
+            eparams.setdefault('protect', outer)
             logger.info('encode %s content with QP using params %r',
                          truetype, eparams)
             try:
@@ -606,10 +607,10 @@ def _set_content_from_node(message, reader, root, o):
             chunked = o['maxlinelen'] // 4 * 4
             eparams.setdefault('maxlinelen', max(len(eol), chunked))
             # to make implementors' lives easier, tell them where
-            # the final line ends by default (maybe? it's not really
-            # needed for multipart, but it'd be certainly appreciated
-            # in like e-mails with only one part)
-            chomp = eparams.pop('chomp', False)
+            # the final line ends by default...
+            # ... except in multiparts, that way we "save" two bytes
+            # and it makes my ass happy for no reason >:D
+            chomp = eparams.pop('chomp', not outer)
             logger.info('encode %s content with base64 using params %r',
                         truetype, eparams)
             try:
@@ -637,7 +638,10 @@ def _set_content_from_node(message, reader, root, o):
         # otherwise we'll just pray that the input HAS been encoded... lol XD
         # (jk i just dont know what to do)
         else:
-            assert encoding is not None # we don't want to guess, yet
+            if encoding is None:
+                reader.error(_begin_lineno(root),
+                    'please do not omit content transfer encoding... '
+                    'even a 7bit will do if you are just writing ASCII q.q')
             if encoding != 'binary':
                 logger.warning('dunno what CTE %r is. pretending it is '
                                'encoded already and fingers-crossed '
@@ -772,11 +776,13 @@ def _set_pyparam(store, name, header, value, reader, pair, o):
     if name == 'encoding':
         ivalid = {b'maxlinelen'}
         bvalid = {b'treol'}
+        special = set()
         vlower = value.lower()
 
         if vlower == 'quoted-printable':
-            bvalid.add(b'embed')
             bvalid.add(b'wrap')
+            special.add(b'embed')
+            bvalid.add(b'protect')
         elif vlower == 'base64':
             bvalid.add(b'chomp')
 
@@ -804,29 +810,38 @@ def _set_pyparam(store, name, header, value, reader, pair, o):
                 raise reader.error(pair.start.lineno,
                     'duplicate key: %r', dupe)
 
-            if key not in ivalid | bvalid:
+            if klower not in ivalid | bvalid | special:
                 raise reader.error(pair.middle.lineno,
                                    '%r is not a valid key (candidates '
                                    'for the %s encoding include %r)',
-                                   key, value, ivalid | bvalid)
+                                   key, value, ivalid | bvalid | special)
 
-            if key in ivalid:
+            if klower in ivalid:
                 number = int(val.strip().decode('us-ascii'))
                 if pair.key == b'maxlinelen':
-                    if number > o['maxlinelen']:
+                    if o['smtpline'] and number > o['smtpline']:
                         raise reader.error(pair.middle.lineno,
                             'line limit for content encoding '
                             'exceeds line limit imposed on the '
                             'whole message (%d > %d)',
-                            number, o['maxlinelen'])
-                store[key.decode('us-ascii')] = number
-            elif key in bvalid:
+                            number, o['smtpline'])
+                store[klower.decode('us-ascii')] = number
+            elif klower in bvalid:
                 # XXX copied again
                 try:
-                    store[key.decode('us-ascii')] = MABLE[val.lower()]
+                    store[klower.decode('us-ascii')] = MABLE[val.lower()]
                 except KeyError as e:
                     raise reader.error(pair.start.lineno,
                         'invalid boolean: %r', val) from e
+            elif klower in special:
+                assert klower == b'embed'
+                # true (all) false (line) (none)
+                try:
+                    store[klower.decode('us-ascii')] = \
+                        ('line', 'all')[MABLE[val.lower()]]
+                except KeyError as e:
+                    store[klower.decode('us-ascii')] = \
+                        val.decode('us-ascii')
 
     else:
         raise reader.error(pair.start.lineno, '%s header does not have '

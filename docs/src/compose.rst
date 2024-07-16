@@ -264,12 +264,13 @@ the input directives.  the two types are:
    (where the periods denote spaces) would input a file named
    ``' file   '``.
 
-   .. warning::
+   .. Note::
 
-      there are no escape mechanisms defined at the moment, so only files
+      There are no escape mechanisms defined at the moment, so only files
       that do not contain a LF character can be represented (which is the
       case for most operating systems, I think)
-      avoid using dollar signs and backslashes through, since they may be
+
+      Avoid using dollar signs and backslashes through, since they may be
       used for escapes in a future version.
 
 *  inline string (``<<``): this too preserves all raw bytes (subject
@@ -493,7 +494,8 @@ There are more unhinged ones but these guys are here to stay :/
 
    Whether internationalized addresses are supported (?)
    Corresponds to the SMTPUTF8 extension (`RFC 6531`_).
-   By default, this is ``no?``.
+   By default, this is ``no?``, meaning that it will always be
+   overridden by server capabilities.
 
 .. option:: 8bitmime <bool>
 
@@ -686,10 +688,16 @@ which must be something compose.py can handle)
 
    *  ``quoted-printable``: :func:`~rdks.mail.content.encoders.encode_qp`
 
-      -  ``embed = <bool>``: encoder option.  See defaults in
-         encoder documentation.
-
       -  ``wrap = <bool>``: encoder option.
+         By default this is True if the MIME type of message
+         starts with ``text/``, i.e. a text message.
+
+      -  ``embed = <bool> | all | line | none``: encoder option.
+         By default this is unspecified, i.e. default is ``all`` or
+         ``line`` depending on the value of *wrap*.
+
+      -  ``protect = <bool>``: encoder option.
+         By default this is False *except* when message is top-level.
 
    *  ``base64``: :func:`~rdks.mail.content.encoders.encode_base64`
 
@@ -700,8 +708,8 @@ which must be something compose.py can handle)
          (What actually happens is the opposite since
          :func:`~rdks.mail.content.encoders.encode_base64`
          doesn't really include that last linesep.)
-         By default this is true, which is to use the output of
-         the encoder verbatim.
+
+         By default this is true *except* when message is top-level.
 
    Common options (except for ``binary``, if that will ever get
    to be supported):

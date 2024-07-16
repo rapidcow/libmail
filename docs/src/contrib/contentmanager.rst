@@ -20,8 +20,7 @@ features include:
 3. lets you add the three other date params + the size_ param from
    RFC 2183 (not_ just_ filename_ !!)
 4. PRECISE QUOTED-PRINTABLE ENCODING WITHOUT LOOKING LIKE JUMBLED CRAP!!!
-   (XXX: this is still a WIP, ahem, but embed=False works for ALMOST
-   all cases)
+   (IT IS REAL NOW! see the protecc argument! >:3)
 5. and last but not least..... **you get to explicitly keep that trailing
    newline purged for whatever reason !!!** (it's weird if anyone actually
    wants to, but it is important that you *can*. i hate it when something
@@ -204,6 +203,13 @@ extent even redundant!)
       is kind of weird (I mean what else should we write,
       "``Content-Disposition: ; filename=foo.png``"?)
 
+      .. note::
+
+         though... ``MIME-Version: 1.0`` is always added to *message*
+         if it is an :class:`~email.message.EmailMessage`!
+         And I like MIME-Version declared at the top, so sorry
+         Python :) (I can see why they did that later though)
+
       The rest of the madness unfolds, depending on the type of *content*:
 
       *  The first signature is used when *content* is either a
@@ -232,7 +238,7 @@ extent even redundant!)
          .. _RFC 2046, Section 5.1.3: https://datatracker.ietf.org/doc/html/rfc2046#section-5.1.3
 
          **Hook**: :meth:`set_multipart_content`, where *parts* is
-         always a list.
+         always a list.  *enc_params* are not used.
 
       *  The second signature is used when *content* is a :class:`str`
          or :class:`bytes`.  For :class:`str`, the call::
@@ -251,10 +257,12 @@ extent even redundant!)
          and text data based on the type.
 
          **Hook** for the :class:`str` case: :meth:`set_text_content`,
-         where all arguments except the common options are passed.
+         where all arguments except the common options are passed
+         (including *enc_params*).
 
          **Hook** for the :class:`bytes` case: :meth:`set_raw_content`,
-         where the aforementioned arguments except *errors* are passed.
+         where the aforementioned arguments except *errors* are passed
+         (including *enc_params* --- still!)
 
          Unlike the first case, leaving out *mimetype* would leave
          Content-Type unset or untouched; the presence of *charset*
@@ -316,10 +324,8 @@ extent even redundant!)
          *linesep* by default (which makes it possible for, say,
          quoted-printable encoded text to be embedded.)
 
-         By default, *treol* is true for all *cte* **except base64**,
-         which typically does not represent text with EOLs subject to
-         the canonical model described in `RFC 2049
-         <https://datatracker.ietf.org/doc/html/rfc2049#section-4>`_.
+         By default, *treol* is true unless the main type is not
+         "text" or *cte* is base64.
          In any case, however, you may explicitly set *treol* to True
          so that EOL is always translated to *linesep*, or set it to False
          so that the raw bytes are preserved verbatim.
@@ -369,14 +375,14 @@ i will start with describing the encoders (setters) first, though
 .. class:: ContentManager
    :noindex:
 
-   .. method:: encode_body(body, cte, *, maxlinelen, linesep, **kwds)
+   .. method:: encode_body(message, body, cte, *, maxlinelen, linesep, **kwds)
 
       Encode *body* as :class:`bytes` to the MIME payload as
       :class:`bytes`.  The produced representation should be
       completely reversible by :meth:`decode_body` with the
       same parameters.
 
-   .. method:: decode_body(body, cte, *, maxlinelen, linesep, **kwds)
+   .. method:: decode_body(message, body, cte, *, maxlinelen, linesep, **kwds)
 
       Decode the MIME-encoded *body* as :class:`bytes` to the
       original :class:`bytes`.  This function is, again, too strict
@@ -430,35 +436,72 @@ i will start with describing the encoders (setters) first, though
    Here are the methods defined by default.  All functions use
    ``canonical_linesep=b'\n'``.
 
-   .. method:: decode_7bit(body, *, maxlinelen, linesep)
+   .. method:: decode_7bit(message, body, *, maxlinelen, linesep)
 
       Delegate to :func:`.decoders.decode_verbatim` with ``ascii=True``.
 
-   .. method:: decode_8bit(body, *, maxlinelen, linesep)
+   .. method:: decode_8bit(message, body, *, maxlinelen, linesep)
 
       Delegate to :func:`.decoders.decode_verbatim` with ``ascii=False``.
 
-   .. method:: decode_quoted_printable(body, *, maxlinelen, linesep)
+   .. method:: decode_quoted_printable(message, body, *, maxlinelen, linesep)
 
       Delegate to :func:`.decoders.decode_qp`.
 
-   .. method:: decode_base64(body, *, maxlinelen, linesep)
+   .. method:: decode_base64(message, body, *, maxlinelen, linesep)
 
       Delegate to :func:`.decoders.decode_base64`.
 
-   .. method:: encode_7bit(body, *, maxlinelen, linesep)
+   .. method:: encode_7bit(message, body, *, maxlinelen, linesep)
 
       Delegate to :func:`.encoders.encode_verbatim` with ``ascii=True``.
 
-   .. method:: encode_8bit(body, *, maxlinelen, linesep)
+   .. method:: encode_8bit(message, body, *, maxlinelen, linesep)
 
       Delegate to :func:`.encoders.encode_verbatim` with ``ascii=False``.
 
-   .. method:: encode_quoted_printable(body, *, maxlinelen, linesep, wrap=True, embed=None)
+   .. method:: encode_quoted_printable(message, body, *, maxlinelen, linesep, wrap, embed, protect)
 
-      Delegate to :func:`.encoders.encode_qp`.
+      Delegate to :func:`.encoders.encode_qp`, with the following defaults:
 
-   .. method:: encode_base64(body, *, maxlinelen, linesep, chomp=False)
+      *  *wrap* is True if *message*'s main type is either *text*
+         or *application*.
+      *  *embed* is True if and only if *messaeg*'s main type is *text*.
+      *  *protect* is always True, meaning any final line which
+         does not end with *linesep* is padded with ``"=" linesep``.
+         This means that, let's say, the empty body, without *treol*
+         or *fixeol*, would look kind of weird:
 
-      Delegate to :func:`.encoders.base64`.
+         .. doctest::
+
+            >>> msg = EmailMessage(policy=default)
+            >>> msg.set_content('', 'text/plain', treol=False, cte='quoted-printable')
+            >>> print(msg, end='')
+            MIME-Version: 1.0
+            Content-Type: text/plain; charset="utf-8"
+            Content-Transfer-Encoding: quoted-printable
+            <BLANKLINE>
+            =
+
+         But that's just the way QP encoding works! And you can
+         see everyone agreeing this to be the correct representation:
+
+         .. testsetup::
+
+            import email
+            import email.contentmanager
+
+         .. doctest::
+
+            >>> msg.get_content(decode=False)
+            b''
+            >>> email.contentmanager.raw_data_manager.get_content(msg)
+            ''
+            >>> msg.get_payload(decode=True)
+            b''
+
+   .. method:: encode_base64(body, *, maxlinelen, linesep, chomp)
+
+      Delegate to :func:`.encoders.base64`, with *chomp* if and only if
+      *chomp* was passed True by the user as an encoding parameter.
 

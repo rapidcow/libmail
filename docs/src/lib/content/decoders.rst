@@ -39,12 +39,18 @@ because it makes no sense to.
 
 .. _RFC 2045, Section 6.7: https://datatracker.ietf.org/doc/html/rfc2045#section-6.7
 
+   .. note::
+
+      :meth:`decode_qp` does not strip any padded whitespace following
+      a trailing equal sign.  I'm not sure how to handle that, and
+      I imagine doing that here would be counterproductive.
+
 .. function:: decode_base64(body, *, maxlinelen=None, linesep=CRLF, canonical_linesep=None)
 
    Decode the encoded *body* with the base64 encoding using
    :func:`binascii.a2b_base64`.
 
-   *linesep* is useless together with *maxlinelen*.
+   *linesep* together with *maxlinelen* are not used.
 
 .. function:: decode_verbatim(body, maxlinelen=80, linesep=CRLF, canonical_linesep=None, ascii=False)
 

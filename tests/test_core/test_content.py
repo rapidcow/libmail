@@ -28,57 +28,104 @@ class TestUtilities(unittest.TestCase):
 
 class TestEncoders(unittest.TestCase):
     def test_encode_qp(self):
-        self.assertEqual(encoders.encode_qp(b''), b'')
-        self.assertEqual(encoders.encode_qp(b'\n'), b'=0A')
+        self.assertEqual(encoders.encode_qp(b'', protect=False), b'')
+        self.assertEqual(encoders.encode_qp(b''), b'=\r\n')
+        self.assertEqual(encoders.encode_qp(b'\n'), b'=0A=\r\n')
         self.assertEqual(encoders.encode_qp(b'\r\n'), b'\r\n')
         self.assertEqual(encoders.encode_qp(
             b'hello, w\r\norld', maxlinelen=7),
-            b'hell=\r\no, w\r\norld')
+            b'hell=\r\no, w\r\norld=\r\n')
         self.assertEqual(encoders.encode_qp(
             b'hello, w\r\norld', maxlinelen=7, canonical_linesep=b'\n'),
-            b'hell=\no, w\norld')
-        self.assertEqual(encoders.encode_qp(b'hello: '), b'hello:=20')
-        self.assertEqual(encoders.encode_qp(b'hello:\t'), b'hello:=09')
+            b'hell=\no, w\norld=\n')
+        self.assertEqual(encoders.encode_qp(b'hello: ', protect=False),
+                                                         b'hello:=20')
+        self.assertEqual(encoders.encode_qp(b'hello:\t', protect=False),
+                                                          b'hello:=09')
 
     def test_encode_qp_eol_handling(self):
-        self.assertEqual(encoders.encode_qp(b'espa\xf1ol'), b'espa=F1ol')
-        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n'), b'espa=F1ol=0A')
+        self.assertEqual(encoders.encode_qp(b'espa\xf1ol'), b'espa=F1ol=\r\n')
+        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n', protect=False),
+                                                              b'espa=F1ol=0A')
         self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n\r\n'),
                                                      b'espa=F1ol=0A=\r\n\r\n')
-        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\r'), b'espa=F1ol=0D')
-        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n\r'),
-            b'espa=F1ol=0A=\r\n=0D')
+        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\r', protect=False,
+                                                           ), b'espa=F1ol=0D')
+        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n\r', protect=False),
+                                                      b'espa=F1ol=0A=\r\n=0D')
         self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n\r', wrap=False),
-            b'espa=F1ol=0A=0D')
+                                                      b'espa=F1ol=0A=0D=\r\n')
         self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n\r\n', wrap=False),
-            b'espa=F1ol=0A=0D=0A')
-        # XXX: this doesn't make sense at the moment
-        # currently, embed is ignored when wrap is false,
-        # so the output would actually be the same as above.
-        # i might consider having this one day though....
-        ## self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n\r\n',
-        ##     wrap=False, embed=True), b'espa=F1ol=0A\r\n')
+                                                   b'espa=F1ol=0A=0D=0A=\r\n')
+        # this makes sense now! yippee!!! XD
         self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n\r\n',
-            wrap=False, embed=True), b'espa=F1ol=0A=0D=0A')
+            wrap=False, embed=True), b'espa=F1ol=0A\r\n')
         self.assertEqual(encoders.encode_qp(b'espa\xf1ol\r\n'),
             b'espa=F1ol\r\n')
-        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\r\n', embed=False),
-            b'espa=F1ol=0D=0A')
+        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\r\n',
+            embed=False, protect=False), b'espa=F1ol=0D=0A')
 
     def test_encode_qp_line_wrapping(self):
-        self.assertEqual(encoders.encode_qp(b'espa\xf1ol', maxlinelen=8),
-            b'espa=\r\n=F1ol')
-        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n', maxlinelen=8),
-            b'espa=\r\n=F1ol=\r\n=0A')
-        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\r\n', maxlinelen=8),
-            b'espa=\r\n=F1ol\r\n')
+        self.assertEqual(encoders.encode_qp(b'espa\xf1ol', maxlinelen=8,
+            protect=False), b'espa=\r\n=F1ol')
+        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n', maxlinelen=8,
+            protect=False), b'espa=\r\n=F1ol=\r\n=0A')
+        self.assertEqual(encoders.encode_qp(b'espa\xf1ol\r\n', maxlinelen=8,
+            protect=False), b'espa=\r\n=F1ol\r\n')
         # test canonical linesep
         self.assertEqual(encoders.encode_qp(b'espa\xf1ol', maxlinelen=8,
-            canonical_linesep=b'\n'), b'espa=\n=F1ol')
+            protect=False, canonical_linesep=b'\n'), b'espa=\n=F1ol')
         self.assertEqual(encoders.encode_qp(b'espa\xf1ol\n', maxlinelen=8,
-            canonical_linesep=b'\n'), b'espa=\n=F1ol=\n=0A')
+            protect=False, canonical_linesep=b'\n'), b'espa=\n=F1ol=\n=0A')
         self.assertEqual(encoders.encode_qp(b'espa\xf1ol\r\n', maxlinelen=8,
-            canonical_linesep=b'\n'), b'espa=\n=F1ol\n')
+            protect=False, canonical_linesep=b'\n'), b'espa=\n=F1ol\n')
+
+    def test_encode_qp_with_terribly_narrow_maxlinelen(self):
+        self.assertEqual(encoders.encode_qp(b'some str\xedng d\xf6th '
+            b'ne\xe8d protec\xe7', maxlinelen=6),
+            b'som=\r\n'
+            b'e s=\r\n'
+            b'tr=\r\n'
+            b'=ED=\r\n'
+            b'ng =\r\n'
+            b'd=\r\n'
+            b'=F6=\r\n'
+            b'th =\r\n'
+            b'ne=\r\n'
+            b'=E8=\r\n'
+            b'd p=\r\n'
+            b'rot=\r\n'
+            b'ec=\r\n'
+            b'=E7=\r\n')
+        with self.assertRaisesRegex(encoders.EncodingError,
+                r'\Amaxlinelen is too small to encode the first byte '
+                r'of a line \(at least 1 more byte is needed\)\Z'):
+            encoders.encode_qp(b'some str\xedng', maxlinelen=5)
+        self.assertEqual(encoders.encode_qp(b'some clich\xe9\r\n',
+            maxlinelen=5),
+            b'so=\r\n'
+            b'me=\r\n'
+            b' c=\r\n'
+            b'li=\r\n'
+            b'ch=\r\n'
+            b'=E9\r\n')
+        with self.assertRaisesRegex(encoders.EncodingError,
+                r'\Amaxlinelen is too small to encode the first byte '
+                r'of a line \(at least 1 more byte is needed\)\Z'):
+            encoders.encode_qp(b'some clich\xe9\r\n', maxlinelen=4)
+        self.assertEqual(encoders.encode_qp(b'\r\n'.join(bytes([i])
+            for i in b'hi,bip') + b'\r\n', maxlinelen=3),
+            b'\r\n'.join(bytes([i]) for i in b'hi,bip') + b'\r\n')
+        self.assertEqual(encoders.encode_qp(b'\r\n'.join(bytes([i])
+            for i in b'hi,bip'), maxlinelen=3, protect=False),
+            b'\r\n'.join(bytes([i]) for i in b'hi,bip'))
+        # the whitespace has to be encoded as =20, thus taking
+        # up 5 characters on one line.  that's 2 too more.
+        with self.assertRaisesRegex(encoders.EncodingError,
+                r'\Amaxlinelen is too small to encode the first byte '
+                r'of a line \(at least 2 more bytes are needed\)\Z'
+            ):
+            encoders.encode_qp(b'h\r\n \r\ni\r\n', maxlinelen=3)
 
     def test_encode_base64(self):
         s1 = b'\xe4\xbb\xa5\xe6\xad\xa3'
@@ -112,7 +159,9 @@ class TestEncoders(unittest.TestCase):
 class TestDecoders(unittest.TestCase):
     def test_decode_qp(self):
         self.assertEqual(decoders.decode_qp(b''), b'')
+        self.assertEqual(decoders.decode_qp(b'=\r\n'), b'')
         self.assertEqual(decoders.decode_qp(b'=0A'), b'\n')
+        self.assertEqual(decoders.decode_qp(b'=0A=\r\n'), b'\n')
         with self.assertRaises(DecodingError):
             decoders.decode_qp(b'\n')
         self.assertEqual(decoders.decode_qp(b'\r\n'), b'\r\n')

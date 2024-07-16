@@ -72,12 +72,16 @@ def _iter_lines(body):
         return
     lines = body.splitlines(keepends=True)
     for line in lines:
-        for off, eol in EOL_MARKERS:
-            if line.endswith(eol):
-                yield line[:-off], eol
-                break
-        else:
-            yield line, b''
+        yield _split_eol(line)
+
+
+def _split_eol(line):
+    for off, eol in EOL_MARKERS:
+        if line.endswith(eol):
+            return line[:-off], eol
+            break
+    else:
+        return line, b''
 
 
 class EncodingError(ValueError):
@@ -110,18 +114,22 @@ QP_FINAL = tuple(
 
 # stolen from quopri.encode (native impl)
 def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
-              canonical_linesep=None, wrap=True, embed=None):
+              canonical_linesep=None, wrap=True, embed=None, protect=True):
     """do quoted-printable encoding as per RFC 2045 6.7.
 
     maxlinelen - line limit INCLUDING linesep (EOL)
                  (defaults to 78+2 = 80 as per RFC recommendation)
     linesep - end-of-line marker (EOL), can be any one of CR/LF/CRLF
               (defaults to CRLF)
-    wrap - always start on a new line after every CR/LF/CRLF sequence
-           (defaults to True)
-    embed - simply write linesep when EOL matches it; set to False if you
-            really care about byte-for-byte accuracy
+
+    wrap - (True/False) treat CR/LF/CRLF as semantic line breaks
+           and open a newline after each (defaults to True)
+    embed - True ('all') for line and EOLs, False ('line') for line
+            only, and 'none' for nothing (i.e. encode everything)
             (defaults to whatever wrap is)
+    protect - (True/False) ensure that the encoded string always
+              ends with linesep.  This is probably important due to
+              SMTP relying on that last CRLF to terminate the body.
 
     one more out-of-place kwarg to cater to python's email package's quirks:
 
@@ -131,39 +139,56 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
     if canonical_linesep is None:
         canonical_linesep = linesep
     if embed is None:
-        embed = wrap
+        embed = bool(wrap)
+    if isinstance(embed, bool):
+        embed = ('line', 'all')[embed]
+    if embed not in {'all', 'line', 'none'}:
+        raise ValueError("embed should be one of 'all', 'line', "
+                         "and 'none', not %r" % (embed,))
     buffer = io.BytesIO()
     maxbearlen = maxlinelen - len(linesep)
-    softsep = b'=' + linesep
+    softsep = b'=' + canonical_linesep
     # less than 1; probably not positive
     if maxbearlen < 1:
-        raise EncodingError('maxlinelen shorter than linesep')
+        raise EncodingError('maxlinelen not longer than than len(linesep)')
     if not wrap:
-        _encode_qp_line(buffer, body, False, maxbearlen, canonical_linesep)
+        bigline, bigeol = _split_eol(body)
+        if bigeol == linesep and embed == 'all':
+            _encode_qp_line(buffer, bigline, False, maxbearlen,
+                            canonical_linesep, False)
+            buffer.write(canonical_linesep)
+        else:
+            _encode_qp_line(buffer, bigline + bigeol, protect, maxbearlen,
+                            canonical_linesep, embed == 'none')
+            if protect:
+                buffer.write(softsep)
     else:
         nextsep = MTSTR
         lastsep = MTSTR
         lines = peeker(_iter_lines(body))
         for line, eol in lines:
             buffer.write(nextsep)
-            if eol == linesep and embed:
+            if eol == linesep and embed == 'all':
                 _encode_qp_line(buffer, line, False,
-                                maxbearlen, canonical_linesep)
+                                maxbearlen, canonical_linesep, False)
                 nextsep = canonical_linesep
                 lastsep = canonical_linesep
             else:
-                _encode_qp_line(buffer, line + eol, lines.has_next(),
-                                maxbearlen, canonical_linesep)
+                _encode_qp_line(buffer, line + eol,
+                                protect or lines.has_next(),
+                                maxbearlen, canonical_linesep,
+                                embed == 'none')
                 nextsep = softsep
-                lastsep = MTSTR
+                lastsep = softsep if protect else MTSTR
         buffer.write(lastsep)
     return buffer.getvalue()
 
-def _encode_qp_line(fp, line, pad, maxbearlen, linesep):
+def _encode_qp_line(fp, line, pad, maxbearlen, linesep, encall):
     spaceleft = maxbearlen
     sentinel = MTSTR # suffices.
     lastbyte = None
-    for thisbyte, nextbyte in pairwise(_encode_qp_bytes(line, sentinel)):
+    _encode = _encode_every_qp_byte if encall else _encode_some_qp_bytes
+    for thisbyte, nextbyte in pairwise(_encode(line, sentinel)):
         # reserve one byte for soft wrap if we're not at the end
         # OR we're at the end but a padding is demanded
         reserved = spaceleft - (nextbyte is not sentinel or pad)
@@ -181,12 +206,14 @@ def _encode_qp_line(fp, line, pad, maxbearlen, linesep):
             spaceleft -= fp.write(thisbyte)
             lastbyte = thisbyte
             continue
+        more = len(thisbyte) - reserved
+        s = ' is' if more == 1 else 's are'
         # ... unless we don't, in which case we are just f**ked
         raise EncodingError('maxlinelen is too small to encode the '
-                            'first byte of a line (at least %d bytes '
-                            'are needed minus linesep)' % reserved)
+                            'first byte of a line (at least %d more '
+                            'byte%s needed)' % (more, s))
 
-def _encode_qp_bytes(line, sentinel):
+def _encode_some_qp_bytes(line, sentinel):
     lastbyte = None
     for byte in line:
         if lastbyte is not None:
@@ -194,6 +221,11 @@ def _encode_qp_bytes(line, sentinel):
         lastbyte = byte
     if lastbyte is not None:
         yield QP_FINAL[lastbyte]
+    yield sentinel
+
+def _encode_every_qp_byte(line, sentinel):
+    for byte in line:
+        yield b'=%02X' % byte
     yield sentinel
 
 # the thing about base64 (though not mentioned in RFC?)
@@ -269,7 +301,7 @@ def encode_verbatim(body, *, maxlinelen=80, linesep=b'\r\n',
         canonical_linesep = linesep
     maxbearlen = maxlinelen - len(linesep)
     if maxbearlen < 1:
-        raise EncodingError('maxlinelen shorter than linesep')
+        raise EncodingError('maxlinelen not longer than than len(linesep)')
     # since python always splits on occurrences of CR/LF, we
     # just check if EOL ever mismatches the given linesep :D
     #
