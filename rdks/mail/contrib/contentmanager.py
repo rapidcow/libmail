@@ -212,7 +212,7 @@ class ContentManager:
                 set_header(message, 'Content-Type', 'text/plain')
                 message.set_param('charset', charset, replace=True)
         else:
-            reset_header('Content-Type', mimetype)
+            reset_header(message, 'Content-Type', mimetype)
             if charset is not None:
                 message.set_param('charset', charset, replace=True)
         if cte is None:
@@ -274,4 +274,4 @@ class ContentManager:
     def encode_base64(self, body, *, maxlinelen, linesep, chomp=False):
         return encoders.encode_base64(body,
             maxlinelen=maxlinelen, linesep=linesep,
-            canonical_linesep=b'\n', chomp=chomp)
+            canonical_linesep=b'\n') + (b'' if chomp else linesep)
