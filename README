@@ -20,17 +20,17 @@ utilities:
   * mail-tree:  cheap thing that replicates Mutt's view-attachment output
       (i'm surprised there isn't an easy cli that does this =.=)
       depends on humanize <https://pypi.org/project/humanize/>
-        (install with `pip install humanize`
-                 or   `pip install <URI to this repo>[tree]`)
+        (install with  pip install humanize~=4.9
+                 or    pip install "<URI to this repo>[tree]" )
       optionally wcswidth <https://pypi.org/project/wcwidth/>
-        (install with `pip` similarly; this is cool if you deal with CJK)
+        (install with  pip install wcswidth
+                 or    pip install wcswidth)
 
 program!
 
   * compose.py:  composes RFC 5322 e-mails with MIME version 1.0
-                 (depends an awful lot of on python's RFC 5322
-                  style-preserving header parsing & creation,
-                  though MIME body encoding comes out of the box. :)
+      depends on rdks-list <https://git.rapidcow.org/rdks-mail.git>
+        (install with  pip install "<URI to this repo>[compose]" )
 
 installation is a bit harder due to compose.py depending on
 rdks.list, but this should work:
@@ -44,7 +44,6 @@ rdks.list, but this should work:
 (of course you could clone rdks-list too and... but i think you
  already know how to do that)
 
-remote version (XXX: NOT tested)
+remote version:
 
-    pip install -r https://git.rapidcow.org/rdks-mail/plain/requirements.txt
-    pip install git+https://git.rapidcow.org/rdks-mail.git
+    pip install git+https://git.rapidcow.org/rdks-mail.git@main
