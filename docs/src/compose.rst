@@ -452,7 +452,7 @@ Here is a list of each supported option at the moment:
    to be wrapped or a larger maxlinelen is given in any
    subsequent part.  Defaults to 80.
 
-.. option:: smtplinelen <int>
+.. option:: smtpline <int>
 
    Hard maximum line length limit, also including the EOL marker.
    Lines that get longer than this will result in ugly warnings being
