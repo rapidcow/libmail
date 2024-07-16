@@ -18,7 +18,8 @@ there is NO WARRANTY, to the extent permitted by law.
 
 import email.message
 import email.parser
-import email.policy
+# from email.policy import default as default_policy
+from rdks.mail.contrib.policy import default as default_policy
 import email.generator
 import smtplib
 
@@ -133,8 +134,8 @@ def main(argv=None):
     parser.add_argument('--protocol', metavar='PROTO',
                         choices=('smtp', 'starttls', 'smtps'),
                         default='smtp', help='transport protocol ("smtp" for '
-                        'plain SMTP (default), "starttls" for STARTTLS, '
-                        '"smtps" for SSL)')
+                        'plain SMTP (default), "smtps" for SSL, '
+                        '"starttls" for STARTTLS)')
     # degree of annoyingness
     parser.add_argument('--strict', action='store_true',
                         help='raise error when weird stuff happens')
@@ -378,7 +379,7 @@ class WatchDog:
 # python's universal newline; i am personally in no favor
 # for it (at least \n moves the cursor down! cr just brings
 # it to the beginning and writes over everything!)
-MAPLE = {b'lf': '\n', b'crlf': '\r\n', b'cr': '\r'}
+MAPLE = {b'LF': '\n', b'CRLF': '\r\n', b'CR': '\r'}
 ELPAM = {v: k.upper().decode('us-ascii') for k, v in MAPLE.items()}
 # mable <- mapble <- map boolean
 # (doesn't have do with mabel o o)
@@ -386,8 +387,8 @@ MABLE = {
     # note: most of these are jokes, the only sensible ones are
     #   ON: true ok yes on good positive enabled
     #   NO: false no off bad negative disabled
-    #   ON? true? ok? maybe? good? on? hopefully
-    #   NO? false? no? maybe... bad? off? maybe not. probably
+    #   ON? true? ok? maybe good? on? hopefully
+    #   NO? false? no? maybe... maybe not. bad? off? probably
     #   ON! true! ok! yes! good! on! absolutely! yippee!
     #   NO! false! no! bad! off! absolutely not! never!
     # the rest are for funsies
@@ -450,7 +451,7 @@ def _set_options(options, r, x):
                 if field in {'maxlinelen', 'smtpline', 'smtpsize'}:
                     value = int(content.decode())
                 elif field == 'linesep':
-                    name = _chomp(pair.content).lower()
+                    name = _chomp(pair.content).upper()
                     try:
                         value = MAPLE[name]
                     except KeyError:
@@ -466,7 +467,7 @@ def _set_options(options, r, x):
                 options[field] = value
 
 def _parse_headers(headers, o, strict):
-    policy = email.policy.EmailPolicy(
+    policy = default_policy.clone(
         max_line_length = (max(1, o['maxlinelen'] - len(o['linesep']))
                             if o['maxlinelen'] else 0),
         linesep         = o['linesep'],
@@ -474,6 +475,8 @@ def _parse_headers(headers, o, strict):
         cte_type        = ('8bit' if o['8bitmime'] or
                             o['binarymime'] else '7bit'),
         raise_on_defect = strict,
+        # need this for our new fold function to see the headers :)
+        refold_source   = 'all',
     )
     parser = email.parser.BytesHeaderParser(policy=policy)
     return parser.parsebytes(headers)
@@ -635,9 +638,10 @@ def _set_content_from_node(message, reader, root, o):
         # (jk i just dont know what to do)
         else:
             assert encoding is not None # we don't want to guess, yet
-            logger.warning('dunno what CTE %r is. pretending it is '
-                           'encoded already and fingers-crossed '
-                           'hoping for the best', encoding)
+            if encoding != 'binary':
+                logger.warning('dunno what CTE %r is. pretending it is '
+                               'encoded already and fingers-crossed '
+                               'hoping for the best', encoding)
             payload = root.data.decode('us-ascii', 'surrogateescape')
         message.set_payload(payload)
 

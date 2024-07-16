@@ -1,0 +1,14 @@
+LICENSES for things in this repository
+---------------------------------------
+
+ethan/rapidcow here! o7
+
+license is GPLv3+ for all my code. that plus is doing work because
+it means you are explicitly allowed to "upgrade" to a newer version.
+see COPYING for the full license.
+
+parts that are NOT my code (though partially modified by me):
+
+    tests/test_contrib/*: Python Software Foundation
+    credits are noted in comments containing URLs
+    starting with: "from: https://github.com/python/cpython"

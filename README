@@ -20,7 +20,8 @@ utilities:
   * mail-tree:  cheap thing that replicates Mutt's view-attachment output
       (i'm surprised there isn't an easy cli that does this =.=)
       depends on humanize <https://pypi.org/project/humanize/>
-        (install with `pip install humanize` or `pip install .[tree]`)
+        (install with `pip install humanize`
+                 or   `pip install <URI to this repo>[tree]`)
       optionally wcswidth <https://pypi.org/project/wcwidth/>
         (install with `pip` similarly; this is cool if you deal with CJK)
 
@@ -47,24 +48,3 @@ remote version (XXX: NOT tested)
 
     pip install -r https://git.rapidcow.org/rdks-mail/plain/requirements.txt
     pip install git+https://git.rapidcow.org/rdks-mail.git
-
-license is GPLv3+, that plus is doing work because it means
-you are explicitly allowed to "upgrade" to a newer version.
-see COPYING for the full license.
-
-finally uh, this copyright & license notice thingy:
-
-Copyright (C) 2024  Ethan Meng (rapidcow)
-
-rapid's e-mail utilities (hereafter rdks.mail) is free software:
-you can redistribute it and/or modify it under the terms of the
-GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version.
-
-rdks.mail is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with rdks.mail.  If not, see <http://www.gnu.org/licenses/>.

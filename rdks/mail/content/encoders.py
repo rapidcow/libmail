@@ -67,6 +67,9 @@ EOL_MARKERS = [
 ]
 
 def _iter_lines(body):
+    if not body:
+        yield b'', b''
+        return
     lines = body.splitlines(keepends=True)
     for line in lines:
         for off, eol in EOL_MARKERS:
@@ -80,12 +83,12 @@ def _iter_lines(body):
 class EncodingError(ValueError):
     pass
 
-def treol(body, linesep=b'\r\n'):
+def treol(body, linesep=b'\r\n', fixeol=False):
     """translate EOL uniformly to linesep"""
     lines = []
     for line, eol in _iter_lines(body):
         lines.append(line)
-        if eol:
+        if fixeol or eol:
             lines.append(linesep)
     return MTSTR.join(lines)
 
@@ -106,7 +109,8 @@ QP_FINAL = tuple(
 )
 
 # stolen from quopri.encode (native impl)
-def encode_qp(body, maxlinelen=80, linesep=b'\r\n', wrap=True, embed=None):
+def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
+              canonical_linesep=None, wrap=True, embed=None):
     """do quoted-printable encoding as per RFC 2045 6.7.
 
     maxlinelen - line limit INCLUDING linesep (EOL)
@@ -118,7 +122,14 @@ def encode_qp(body, maxlinelen=80, linesep=b'\r\n', wrap=True, embed=None):
     embed - simply write linesep when EOL matches it; set to False if you
             really care about byte-for-byte accuracy
             (defaults to whatever wrap is)
+
+    one more out-of-place kwarg to cater to python's email package's quirks:
+
+    canonical_linesep - if specified, output the equivalence of
+        encode_qp(*args, *kwds).replace(linesep, canonical_linesep)
     """
+    if canonical_linesep is None:
+        canonical_linesep = linesep
     if embed is None:
         embed = wrap
     buffer = io.BytesIO()
@@ -126,10 +137,9 @@ def encode_qp(body, maxlinelen=80, linesep=b'\r\n', wrap=True, embed=None):
     softsep = b'=' + linesep
     # less than 1; probably not positive
     if maxbearlen < 1:
-        raise EncodingError('quoted-printable encoding needs at least '
-                            '1 character per line minus linesep')
+        raise EncodingError('maxlinelen shorter than linesep')
     if not wrap:
-        _encode_qp_line(buffer, body, False, maxbearlen, linesep)
+        _encode_qp_line(buffer, body, False, maxbearlen, canonical_linesep)
     else:
         nextsep = MTSTR
         lastsep = MTSTR
@@ -138,12 +148,12 @@ def encode_qp(body, maxlinelen=80, linesep=b'\r\n', wrap=True, embed=None):
             buffer.write(nextsep)
             if eol == linesep and embed:
                 _encode_qp_line(buffer, line, False,
-                                maxbearlen, linesep)
-                nextsep = linesep
-                lastsep = linesep
+                                maxbearlen, canonical_linesep)
+                nextsep = canonical_linesep
+                lastsep = canonical_linesep
             else:
                 _encode_qp_line(buffer, line + eol, lines.has_next(),
-                                maxbearlen, linesep)
+                                maxbearlen, canonical_linesep)
                 nextsep = softsep
                 lastsep = MTSTR
         buffer.write(lastsep)
@@ -189,7 +199,8 @@ def _encode_qp_bytes(line, sentinel):
 # the thing about base64 (though not mentioned in RFC?)
 # is that every line is expected to be a decodable "chunk",
 # so we can't wrap at arbitrary digits (XXX: probably...?)
-def encode_base64(body, maxlinelen=None, linesep=b'\r\n'):
+def encode_base64(body, *, maxlinelen=None, linesep=b'\r\n',
+                  canonical_linesep=None):
     """do base64 encoding.  this is just a pretty wrapper of
     binascii.b2a_base64().  should be RFC 2045 6.8 compliant :/
 
@@ -207,9 +218,13 @@ def encode_base64(body, maxlinelen=None, linesep=b'\r\n'):
                  multiple of 4 IT WOULD FILL UP THE WHOLE SPACE.
                  round it to the nearest multiple of 4 if you want
                  each line to be decodable on their own.
-    linesep - line separator, appende to the very end.
+    linesep - line separator, appended to the very end.
+
+    canonical_linesep - see encode_qp().
     """
     itsy = binascii.b2a_base64(body, newline=False)
+    if canonical_linesep is None:
+        canonical_linesep = linesep
     if maxlinelen is None:
         permitted = 80 - len(linesep)
         maxbearlen = permitted // 4 * 4 or permitted
@@ -220,7 +235,7 @@ def encode_base64(body, maxlinelen=None, linesep=b'\r\n'):
     if maxbearlen < 1:
         raise EncodingError('base64 encoding needs at least '
                             '1 character per line minus linesep')
-    bitsy = linesep.join(map(bytes, grouper(itsy, maxbearlen)))
+    bitsy = canonical_linesep.join(map(bytes, grouper(itsy, maxbearlen)))
     return bitsy
 
 # 7bit and 8bit content are transferred as-is so this isn't
@@ -237,26 +252,42 @@ def encode_base64(body, maxlinelen=None, linesep=b'\r\n'):
 # this process is generalized to any linesep, though the default
 # should be RFC compliant... i hope.
 #
-def encode_verbatim(body, maxlinelen=80, linesep=b'\r\n'):
+def encode_verbatim(body, *, maxlinelen=80, linesep=b'\r\n',
+                    canonical_linesep=None, ascii=False):
     """Encode 7bit / 8bit content.
 
     This function only checks if everything is sanitized
     (i.e. each line is ONLY delimited by linesep and not any
-    other CRLF sequence).  for EOL translation which most programs
+    other CRLF sequence).  For EOL translation which most programs
     perform implicitly, see treol().
+
+    Optionally canonicalize linesep (?) please pretend this is
+    implementaion detail or interface consistency, this isn't
+    much different than just str.replace() swear....
     """
+    if canonical_linesep is None:
+        canonical_linesep = linesep
+    maxbearlen = maxlinelen - len(linesep)
+    if maxbearlen < 1:
+        raise EncodingError('maxlinelen shorter than linesep')
     # since python always splits on occurrences of CR/LF, we
     # just check if EOL ever mismatches the given linesep :D
     #
     # note that since we are bailing out of the function on
     # the first error, i is always going to count the number
     # of linesep
-    for i, (line, eol) in enumerate(_iter_lines(body)):
+    for lineno, (line, eol) in enumerate(_iter_lines(body)):
         if eol and eol != linesep:
             raise EncodingError('misplaced CRLF sequence %r '
-                                'found on line %d' % (eol, i + 1))
-        linelen = len(line) + len(eol)
-        if maxlinelen and linelen > maxlinelen:
+                                'found on line %d' % (eol, lineno + 1))
+        if maxlinelen and len(line) > maxbearlen:
             raise EncodingError('line limit exceeded (%d > %d)'
-                                % (linelen, maxlinelen))
+                                % (len(line), maxbearlen))
+    if canonical_linesep != linesep:
+        body = body.replace(linesep, canonical_linesep)
+    if ascii:
+        try:
+            body.decode('us-ascii')
+        except UnicodeDecodeError as e:
+            raise EncodingError('body is not ascii') from e
     return body

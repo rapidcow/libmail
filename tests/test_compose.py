@@ -1,6 +1,14 @@
-import rdks.mail.compose
+try:
+    import rdks.list
+    has_rplist = True
+except ImportError:
+    has_rplist = False
+
+if has_rplist:
+    import rdks.mail.compose as compose
 import os
 import tempfile
+from textwrap import dedent
 import unittest
 
 def compose(i, o, **files):
@@ -15,6 +23,7 @@ def compose(i, o, **files):
         with open(os.path.join(r, o), 'rb') as fp:
             return fp.read()
 
+@unittest.skipIf(not has_rplist, 'missing rdks.list')
 class TestInlineData(unittest.TestCase):
     def test_inline_toplevel(self):
         """make sure interpret_input is ON because
@@ -23,7 +32,7 @@ class TestInlineData(unittest.TestCase):
             b"options\n"
             b"  linesep LF\n"
             b"headers << @\n"
-            b"  @ From: Ethan Meng <ethan@yizz.me>\n"
+            b"  @ From: Ethan Meng <ethan69@copium.edu>\n"
             b"  @ To: nick 2sbox.com <nick@2sbox.com>\n"
             b"content\n"
             b"  text/plain << |\n"
@@ -36,7 +45,7 @@ class TestInlineData(unittest.TestCase):
         )).decode('ascii')
 
         self.assertEqual(message,
-            "From: Ethan Meng <ethan@yizz.me>\n"
+            "From: Ethan Meng <ethan69@copium.edu>\n"
             "To: nick 2sbox.com <nick@2sbox.com>\n"
             "MIME-Version: 1.0\n"
             'Content-Type: text/plain; charset="us-ascii"\n'
@@ -125,19 +134,20 @@ class TestInlineData(unittest.TestCase):
 
 # we've seen IN-line data...
 # why not add some OUT-line data? ;)
+@unittest.skipIf(not has_rplist, 'missing rdks.list')
 class TestOutlineData(unittest.TestCase):
     def test_header_inputs(self):
         message = compose('message', 'output',
             now=b'Mon, 01 Jul 2024 12:55:37 +0800',
             real_recip=b'nick 2sbox.com <nick@2sbox.com>',
-            test_recip=b'<eyzmeng@gmail.com>',
+            test_recip=b'<test@rapidcow.org>',
             body=b'yo are you frfr\n',
             message=(
                 b"options\n"
                 b"  linesep LF\n"
                 b"headers\n"
                 b"  Date: < now\n"
-                b"  From: Ethan Meng <ethan@yizz.me>\n"
+                b"  From: Ethan Meng <ethan69@copium.edu>\n"
                 b"  To: < test_recip\n"
                 b"content\n"
                 b"  text/plain < body\n"
@@ -147,14 +157,78 @@ class TestOutlineData(unittest.TestCase):
 
         self.assertEqual(message,
             b"Date: Mon, 01 Jul 2024 12:55:37 +0800\n"
-            b"From: Ethan Meng <ethan@yizz.me>\n"
-            b"To: <eyzmeng@gmail.com>\n"
+            b"From: Ethan Meng <ethan69@copium.edu>\n"
+            b"To: <test@rapidcow.org>\n"
             b"MIME-Version: 1.0\n"
             b'Content-Type: text/plain; charset="utf-8"\n'
             b"Content-Transfer-Encoding: 7bit\n"
             b"\n"
             b"yo are you frfr\n"
         )
+
+@unittest.skipIf(not has_rplist, 'missing rdks.list')
+class TestHeaders(unittest.TestCase):
+    # for simplicity, we just ask for each msg-id to appear on
+    # a line of its own. no MIME encoded words or any of that...
+    #
+    # these RFC822 headers use msg-id:
+    #   * Message-ID, In-Reply-To, References
+    #   * Resent-Message-ID (not testing this yet)
+    #
+    # see:
+    #   * https://datatracker.ietf.org/doc/html/rfc5322#section-3.6.4
+    #   * https://datatracker.ietf.org/doc/html/rfc5322#section-3.6.6
+    def test_rfc_msg_id_headers(self):
+        message = compose('message', 'output',
+            message=dedent(
+            """\
+            headers
+              From: Ethan Meng <ethan69@copium.edu>
+              To: My teacher <my.teacher@copium.edu>
+              Message-ID:
+                <172060623043.631.12133522306633788928.copium.edu@RCs-MacBook-Pro.local>
+              In-Reply-To:
+                <372301fd64f34cbe875a37822aa9c05b@MN2PR06MB6734.namprd06.prod.outlook.com>
+              References:
+                <LV3PR06MB9453D0126104E98512B96FAEA0DD2@LV3PR06MB9453.namprd06.prod.outlook.com>
+                <372301fd64f34cbe875a37822aa9c05b@MN2PR06MB6734.namprd06.prod.outlook.com>
+            content
+              text/plain << |
+                | poison
+                of encoding 7bit
+            """).encode('ascii'))
+
+        # note the lack of spaces after colons: this is possible
+        # thanks to the new header parser! :D
+        self.maxDiff = None
+        self.assertEqual(message.decode('ascii'), dedent(
+            """\
+            From: Ethan Meng <ethan69@copium.edu>
+            To: My teacher <my.teacher@copium.edu>
+            Message-ID:
+             <172060623043.631.12133522306633788928.copium.edu@RCs-MacBook-Pro.local>
+            In-Reply-To:
+             <372301fd64f34cbe875a37822aa9c05b@MN2PR06MB6734.namprd06.prod.outlook.com>
+            References:
+             <LV3PR06MB9453D0126104E98512B96FAEA0DD2@LV3PR06MB9453.namprd06.prod.outlook.com>
+             <372301fd64f34cbe875a37822aa9c05b@MN2PR06MB6734.namprd06.prod.outlook.com>
+            MIME-Version: 1.0
+            Content-Type: text/plain
+            Content-Transfer-Encoding: 7bit
+
+            poison""").replace('\n', '\r\n'))
+
+# TODO:
+@unittest.skipIf(not has_rplist, 'missing rdks.list')
+class TestContentBody(unittest.TestCase):
+    def test_verbatim_encoding(self):
+        """maxlinelen (7bit)"""
+
+    def test_qp_encoding(self):
+        """maxlinelen, wrap, embed"""
+
+    def test_base64_encoding(self):
+        """maxlinelen, and idk"""
 
 if __name__ == '__main__':
     unittest.main()
