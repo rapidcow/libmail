@@ -493,20 +493,20 @@ There are more unhinged ones but these guys are here to stay :/
 
    Whether internationalized addresses are supported (?)
    Corresponds to the SMTPUTF8 extension (`RFC 6531`_).
-   By default, this is ``no`` (this is unintended, will be fixed soon)
+   By default, this is ``no?``.
 
 .. option:: 8bitmime <bool>
 
    Whether to allow the 8bit content transfer encoding.  Corresponds
    to the 8BITMIME extension (`RFC 6152`_).
-   By default, this is ``no`` (will be fixed similarly).
+   By default, this is ``no?``.
 
 .. option:: binarymime <bool>
 
    Whether to allow the binary content transfer encoding.  Corresponds
    to the BINARYMIME extension  (`RFC 3030`_).  This doesn't do anything
    at the moment, since binary encoding is still pretty elusive (and buggy).
-   By default, this is ``no`` (will be fixed).
+   By default, this is ``no?``.
 
 .. _RFC 1870: https://datatracker.ietf.org/doc/html/rfc1870
 .. _RFC 3030: https://datatracker.ietf.org/doc/html/rfc3030

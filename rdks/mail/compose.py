@@ -190,9 +190,9 @@ def _main(source, dest, args):
             'smtpline': None,
             # ESMTP features/capabilities
             'smtpsize': 0, # unlimited
-            'smtputf8': False,
-            '8bitmime': False,
-            'binarymime': False,
+            'smtputf8': Maybe(False),
+            '8bitmime': Maybe(False),
+            'binarymime': Maybe(False),
         },
     }
 
