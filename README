@@ -1,14 +1,60 @@
+@===============@==========================================@
+# NOTICE !!!    |                                          |
+*===============+                                          |
+|                                                          |
+| Date: Thu, 18 Jul 2024 15:28:20 +0800                    |
+| From: Ethan Meng <ethan@yizz.me>                         |
+| MIME-Version: 1.0                                        |
+| Content-Type: text/plain; charset="US-ASCII"             |
+| Content-Transfer-Encoding: 7bit                          |
+| Subject: [NOTICE] New docs!!!                            |
+|                                                          |
+| Heyo!!! Just to let you all know that documentations     |
+| are (provisionally) available at                         |
+|                                                          |
+|    <https://docs.rapidcow.org/libmail> !!!!              |
+|                                                          |
+|    .. "provisional" refers to the hosting server, but    |
+|       do expect it to be a permanent URI, or at least    |
+|       a redirection to something that is not 404 :]      |
+|                                                          |
+| To be honest I am now quite fond of this project,        |
+| having just learned that  https://useplaintext.email     |
+| exists.  I am glad that my frustration with "modern"     |
+| e-mails isn't alone in that respect.                     |
+|                                                          |
+| I might use  www.yizx.net  to actually put up updates    |
+| like this, but for now..... eh. whatever :)              |
+|                                                          |
+| - Ethan <3                                               |
+|                                                          |
+v==========================================================v
+
+
 rdks.mail - e-mail utilities
 ----------------------------
 
 at the moment it contains two modules, some small utilities,
-and one BIG CLI program!
+one BIG CLI program, and two packages that parse very specific
+parts of an e-mail!!!
 
 modules:
 
   * outlook:  deals with the (annoying) Thread-Index header.
-  * content:  deals with RFC 1521/2045 content transfer encodings
-              (currently only the encoders are implemented).
+  * content:  deals with MIME content transfer encodings
+      including...
+         - VERY flexible quoted-printable encoding!!!
+         - VERY strict decoder (probably even a bit too strict)!!!
+  * headers:  deals with RFC 822/2822/5322 message format
+      including:
+         - FULL PARSE TREE REPRESENTATION!!!
+         - very minimal yet strict parser of Message IDs
+  * contrib:  my reaction to https://github.com/python/cpython/issues/121515
+      this includes...
+         - convenient drop-in substitutes (at least i tried to :/)
+         - has patches i personally see fit
+         - MAY BE BUGGY. MAY BE VERY UNFORGIVING.
+         - not tested enough (tho good enough for me!)
 
 utilities:
 
