@@ -474,8 +474,8 @@ The exact logic can be found in ``_set_capabilities()``.
 In addition here are some equivalent forms for each kind of boolean
 (case insensitive):
 
-*  ON: ``true`` ``ok`` ``yes`` ``on`` ``good`` ``positive`` ``enabled``
-*  NO: ``false`` ``no`` ``off`` ``bad`` ``negative`` ``disabled``
+*  ON: ``true`` ``ok`` ``yes`` ``on`` ``good`` ``enabled``
+*  NO: ``false`` ``no`` ``off`` ``bad`` ``disabled``
 *  ON? ``true?`` ``ok?`` ``maybe`` ``good?`` ``on?`` ``hopefully``
 *  NO? ``false?`` ``no?`` ``maybe...`` ``maybe not`` ``bad?`` ``off?`` ``probably``
 *  ON! ``true!`` ``ok!`` ``yes!`` ``good!`` ``on!`` ``absolutely!`` ``yippee!``

@@ -385,8 +385,8 @@ ELPAM = {v: k.upper().decode('us-ascii') for k, v in MAPLE.items()}
 # (doesn't have do with mabel o o)
 MABLE = {
     # note: most of these are jokes, the only sensible ones are
-    #   ON: true ok yes on good positive enabled
-    #   NO: false no off bad negative disabled
+    #   ON: true ok yes on good enabled
+    #   NO: false no off bad disabled
     #   ON? true? ok? maybe good? on? hopefully
     #   NO? false? no? maybe... maybe not. bad? off? probably
     #   ON! true! ok! yes! good! on! absolutely! yippee!
@@ -407,7 +407,7 @@ MABLE = {
     b'absolutely!': MustBe(True), b'absolutely not!': MustBe(False),
     b'yippee!': MustBe(True), b'waaaaegh!': MustBe(False),
     b'please!': MustBe(True), b'never!': MustBe(False),
-    # english 2.0
+    # english 2.0 (with an uncapitalized e for jokes)
     b"yesn't": False, b'perchance': Maybe(False), b"s'pose": Maybe(True),
     # you already know this is a joke didn't you
     '🉑'.encode('utf-8'): True,  # permissible
