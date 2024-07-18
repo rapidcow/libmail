@@ -385,8 +385,8 @@ ELPAM = {v: k.upper().decode('us-ascii') for k, v in MAPLE.items()}
 # (doesn't have do with mabel o o)
 MABLE = {
     # note: most of these are jokes, the only sensible ones are
-    #   ON: true ok yes on good enabled
-    #   NO: false no off bad disabled
+    #   ON: true ok yes on good
+    #   NO: false no off bad
     #   ON? true? ok? maybe good? on? hopefully
     #   NO? false? no? maybe... maybe not. bad? off? probably
     #   ON! true! ok! yes! good! on! absolutely! yippee!
