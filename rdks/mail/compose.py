@@ -841,7 +841,7 @@ def _set_pyparam(store, name, header, value, reader, pair, o):
                         ('line', 'all')[MABLE[val.lower()]]
                 except KeyError as e:
                     store[klower.decode('us-ascii')] = \
-                        val.decode('us-ascii')
+                        val.lower().decode('us-ascii')
 
     else:
         raise reader.error(pair.start.lineno, '%s header does not have '

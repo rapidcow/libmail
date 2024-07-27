@@ -127,6 +127,34 @@ class TestEncoders(unittest.TestCase):
             ):
             encoders.encode_qp(b'h\r\n \r\ni\r\n', maxlinelen=3)
 
+    def test_encode_qp_embed(self):
+        # "none" encodes every word
+        self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99  \r\n',
+            embed='none', protect=False).decode('ascii'),
+            '=45=09=68=61=6E=20=E8=92=99=20=20=0D=0A')
+        # "printable" embeds line ends and tabs
+        self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99  \r\n',
+            embed='printable', protect=False).decode('ascii'),
+            'E=09han =E8=92=99  =0D=0A')
+        # "visible" embeds line ends & white space
+        self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99  \r\n',
+            embed='visible', protect=False).decode('ascii'),
+            'E=09han=20=E8=92=99=20=20=0D=0A')
+        # "line" embeds line ends & TRAILING white space
+        self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99  \r\n',
+            embed='line', protect=False).decode('ascii'),
+            'E\than =E8=92=99  =0D=0A')
+        self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99  ',
+            embed='line', protect=False).decode('ascii'),
+            'E\than =E8=92=99 =20')
+        # "all" embeds everything: the default :)
+        self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99  \r\n',
+            embed='all', protect=False).decode('ascii'),
+            'E\than =E8=92=99 =20\r\n')
+        self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99',
+            embed='all', protect=False).decode('ascii'),
+            'E\than =E8=92=99')
+
     def test_encode_base64(self):
         s1 = b'\xe4\xbb\xa5\xe6\xad\xa3'
         s2 = b'\x45\x74\x68\x61\x6e\x21'

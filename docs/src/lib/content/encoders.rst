@@ -31,8 +31,8 @@ representation of RFC 822 messages in the :mod:`email` library.
    rad this way, by the way. ;)
 
    *embed* used to be a boolean too, but for more aggressive quoting
-   I added a third option.  As such, each option now has a canonical
-   string name:
+   I added a "none" option.  As such, each option is now somewhat
+   more fine-grained and has a canonical string name:
 
    *  ``"all"``: all characters are embedded whenever possible.
       That means if a line ends with *linesep*, it is written as-is
@@ -40,16 +40,21 @@ representation of RFC 822 messages in the :mod:`email` library.
       for this.
 
    *  ``"line"``: characters in a line are embedded whenever possible,
-      while line endings are *never* embedded.  The boolean
-      :data:`False` corresponds to this, since this should usually
-      be enough for a byte-for-byte representation.
+      while line endings are *never* embedded (i.e. always encoded).
+      The boolean :data:`False` corresponds to this, since this should
+      usually be enough for a byte-for-byte representation.
 
-   *  ``"none"``: there is a reason why I mentioned this was inspired
-      by qprint(1)... the "paranoid".  Obviously I am paranoid all
-      the time, so I implemented this without a millisecond of doubt.
-      Performance-wise though, expect this to be slightly slower
-      since I don't think enough sane people would use this in place
-      of base64 exist to make creating a separate lookup table worth it.
+   *  ``"printable"``: like "visible" (see below) but embeds spaces
+      (hex 20).
+
+   *  ``"visible"``: goes one step further than ``"line"``, encoding
+      all whitespace even if they appear mid-line (leaving only the
+      *visible* ascii from ``!`` (hex 21) to ``~`` (hex 7e) embedded).
+      This option mimics :meth:`quopri.encode` with ``quotetabs=True``.
+
+   *  ``"none"``: the most paranoid option of all. Every byte is encoded,
+      or to put in other words, *nothing is encoded*.
+      (Indeed, this is inspired by the paranoid option of qprint(1).)
 
 .. _RFC 2045, Section 6.7: https://datatracker.ietf.org/doc/html/rfc2045#section-6.7
 

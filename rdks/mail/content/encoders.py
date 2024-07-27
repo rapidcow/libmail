@@ -122,10 +122,13 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
     linesep - end-of-line marker (EOL), can be any one of CR/LF/CRLF
               (defaults to CRLF)
 
+    QP specific options:
+
     wrap - (True/False) treat CR/LF/CRLF as semantic line breaks
            and open a newline after each (defaults to True)
     embed - True ('all') for line and EOLs, False ('line') for line
-            only, and 'none' for nothing (i.e. encode everything)
+            only, 'visible' for visible characters (only whitespace
+            encoded), and 'none' for nothing (i.e. encode everything)
             (defaults to whatever wrap is)
     protect - (True/False) ensure that the encoded string always
               ends with linesep.  This is probably important due to
@@ -142,9 +145,10 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
         embed = bool(wrap)
     if isinstance(embed, bool):
         embed = ('line', 'all')[embed]
-    if embed not in {'all', 'line', 'none'}:
+    if embed not in {'all', 'line', 'printable', 'visible', 'none'}:
         raise ValueError("embed should be one of 'all', 'line', "
-                         "and 'none', not %r" % (embed,))
+                         "'printable', 'visible', and 'none', "
+                         "not %r" % (embed,))
     buffer = io.BytesIO()
     maxbearlen = maxlinelen - len(linesep)
     softsep = b'=' + canonical_linesep
@@ -155,11 +159,11 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
         bigline, bigeol = _split_eol(body)
         if bigeol == linesep and embed == 'all':
             _encode_qp_line(buffer, bigline, False, maxbearlen,
-                            canonical_linesep, False)
+                            canonical_linesep, 'line')
             buffer.write(canonical_linesep)
         else:
             _encode_qp_line(buffer, bigline + bigeol, protect, maxbearlen,
-                            canonical_linesep, embed == 'none')
+                            canonical_linesep, embed)
             if protect:
                 buffer.write(softsep)
     else:
@@ -170,24 +174,28 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
             buffer.write(nextsep)
             if eol == linesep and embed == 'all':
                 _encode_qp_line(buffer, line, False,
-                                maxbearlen, canonical_linesep, False)
+                                maxbearlen, canonical_linesep,
+                                'line')
                 nextsep = canonical_linesep
                 lastsep = canonical_linesep
             else:
                 _encode_qp_line(buffer, line + eol,
                                 protect or lines.has_next(),
                                 maxbearlen, canonical_linesep,
-                                embed == 'none')
+                                embed)
                 nextsep = softsep
                 lastsep = softsep if protect else MTSTR
         buffer.write(lastsep)
     return buffer.getvalue()
 
-def _encode_qp_line(fp, line, pad, maxbearlen, linesep, encall):
+def _encode_qp_line(fp, line, pad, maxbearlen, linesep, embed):
     spaceleft = maxbearlen
     sentinel = MTSTR # suffices.
     lastbyte = None
-    _encode = _encode_every_qp_byte if encall else _encode_some_qp_bytes
+    _encode = (_encode_every_qp_byte if embed == 'none' else
+               _encode_ctrl_qp_bytes if embed == 'printable' else
+               _encode_visb_qp_bytes if embed == 'visible' else
+               _encode_some_qp_bytes)
     for thisbyte, nextbyte in pairwise(_encode(line, sentinel)):
         # reserve one byte for soft wrap if we're not at the end
         # OR we're at the end but a padding is demanded
@@ -221,6 +229,16 @@ def _encode_some_qp_bytes(line, sentinel):
         lastbyte = byte
     if lastbyte is not None:
         yield QP_FINAL[lastbyte]
+    yield sentinel
+
+def _encode_ctrl_qp_bytes(line, sentinel):
+    for byte, encoded in zip(line, _encode_some_qp_bytes(line, sentinel)):
+        yield b'=09' if byte == 0x09 else encoded
+    yield sentinel
+
+def _encode_visb_qp_bytes(line, sentinel):
+    for byte in line:
+        yield QP_FINAL[byte]
     yield sentinel
 
 def _encode_every_qp_byte(line, sentinel):
