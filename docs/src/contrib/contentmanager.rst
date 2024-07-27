@@ -176,7 +176,7 @@ extent even redundant!)
       Oh wait, there is more!  The common options are even *worse*!
 
       .. method:: set_content(*, description, disposition, filename, creation_date, modification_date, read_date, size, cid, language)
-         :no-index:
+         :noindex:
 
       (hahaha.... i want to die staring at this)
 
