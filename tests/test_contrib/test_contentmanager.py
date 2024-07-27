@@ -24,7 +24,7 @@ def canonicalize(s):
 # https://groups.google.com/g/comp.answers/c/MREwyQLC4gg/m/eEPSsyH7trgJ
 # https://retrocomputing.stackexchange.com/a/3027
 class MyContentManager(ContentManager):
-    def decode_x_uuencode(self, body, *, maxlinelen, linesep):
+    def decode_x_uuencode(self, message, body, *, maxlinelen, linesep):
         # XXX: hack (obviously)
         return binascii.a2b_uu(
           re.sub(b'(?mi)^[ `]$', b'',
