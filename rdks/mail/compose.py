@@ -1080,10 +1080,13 @@ class ConfigReader:
 
     def _next_pair(self):
         if self._lookahead is None:
-            return next(self._reader)
-        pair = self._lookahead
-        self._lookahead = None
-        return pair
+            pair = next(self._reader)
+        else:
+            pair = self._lookahead
+            self._lookahead = None
+        return pair.replace(
+            key=pair.key.replace(b'\r', b''),
+            value=pair.value.replace(b'\r', b''))
 
     def __next__(self):
         while True:
