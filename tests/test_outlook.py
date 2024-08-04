@@ -1,5 +1,5 @@
-from rdks.mail.outlook import FileTime
-from rdks.mail.outlook import Header
+from rdks.mail.outlook import Header, FileTime
+from rdks.mail.outlook import TimeDiff
 from rdks.mail.outlook import ThreadIndex
 from email.utils import parsedate_to_datetime as parse_rfc_date
 from functools import partial
@@ -228,6 +228,15 @@ for s in 'test_new_filetime', 'test_timediff_with_new_filetime':
     for i, cases in enumerate(new_cases):
         factory = getattr(TestThreadIndex, 'x_%s' % (s,))
         setattr(TestThreadIndex, '%s_%03d' % (s, i + 1), factory(i))
+
+class TestTimeDiff(unittest.TestCase):
+    def test_overflow_error(self):
+        with self.assertRaises(ValueError):
+            TimeDiff.from_ticks(TimeDiff.MAX_SMALL_TICKS + 1, sig=0)
+        with self.assertRaises(ValueError):
+            TimeDiff.from_ticks(TimeDiff.MAX_LARGE_TICKS + 1, sig=1)
+        with self.assertRaises(ValueError):
+            TimeDiff.from_ticks(TimeDiff.MAX_LARGE_TICKS + 1)
 
 if __name__ == '__main__':
     unittest.main()
