@@ -464,10 +464,11 @@ i will start with describing the encoders (setters) first, though
 
       Delegate to :func:`.encoders.encode_qp`, with the following defaults:
 
-      *  *wrap* is True if *message*'s main type is either *text*
-         or *application*.
-      *  *embed* is True if and only if *messaeg*'s main type is *text*.
-      *  *protect* is always True, meaning any final line which
+      *  *wrap* defaults to True if *message*'s main type is either
+         ``"text"`` or ``"application"``.
+      *  *embed* defaults to True if and only if *message*'s
+         main type is ``"text"``
+      *  *protect* is defaults, meaning any final line which
          does not end with *linesep* is padded with ``"=" linesep``.
          This means that, let's say, the empty body, without *treol*
          or *fixeol*, would look kind of weird:
