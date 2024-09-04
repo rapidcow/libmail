@@ -227,6 +227,11 @@ class TestDecoders(unittest.TestCase):
         with self.assertRaises(DecodingError):
             decoders.decode_qp(b'espa=F1ol=0D\n')
 
+    def test_decode_qp_with_bytearray(self):
+        self.assertEqual(decoders.decode_qp(
+            bytearray(b'espa=F1ol=0A\r\n')),
+            b'espa\xf1ol\n\r\n')
+
     def test_decode_base64(self):
         s1 = b'\x45\x74\x68\x61\x6e\x21'
         s2 = b'\xe4\xbb\xa5\xe6\xad\xa3'
