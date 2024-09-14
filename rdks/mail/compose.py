@@ -700,8 +700,11 @@ NAME2MIME_MAP = {
     'disposition': 'Content-Disposition',
     'id':          'Content-ID',
     'description': 'Content-Description',
-    # RFC 3282
+    # RFC 3066 + RFC 3282
     'language':    'Content-Language',
+    # RFC 2076 (non-standard)
+    'base':        'Content-Base',
+    'location':    'Content-Location',
 }
 
 def _set_header(message, reader, pair, o):
