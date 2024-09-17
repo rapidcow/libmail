@@ -18,8 +18,7 @@ there is NO WARRANTY, to the extent permitted by law.
 
 import email.message
 import email.parser
-# from email.policy import default as default_policy
-from rdks.mail.contrib.policy import default as default_policy
+from email.policy import EmailPolicy
 import email.generator
 import smtplib
 
@@ -36,6 +35,8 @@ import sys
 
 import rdks.list
 import rdks.mail.content as mime
+import rdks.mail.contrib.contentmanager
+import rdks.mail.contrib.headerregistry
 
 SHORTNAMES = {
     'NOTSET': 'NULL',
@@ -466,8 +467,18 @@ def _set_options(options, r, x):
                             'invalid boolean: %r', name) from None
                 options[field] = value
 
+class MyEmailPolicy(EmailPolicy):
+    def header_store_parse(self, name, value):
+        # XXX: this is very bad, but I don't want Python
+        # to re-encode my already MIME-encoded strings :(
+        return (name, value)
+
 def _parse_headers(headers, o, strict):
-    policy = default_policy.clone(
+    policy = MyEmailPolicy(
+        # my stuff >:)
+        content_manager = rdks.mail.contrib.contentmanager.ContentManager(),
+        header_factory  = rdks.mail.contrib.headerregistry.HeaderRegistry(),
+        # EmailPolicy stuff
         max_line_length = (max(1, o['maxlinelen'] - len(o['linesep']))
                             if o['maxlinelen'] else 0),
         linesep         = o['linesep'],
@@ -476,7 +487,8 @@ def _parse_headers(headers, o, strict):
                             o['binarymime'] else '7bit'),
         raise_on_defect = strict,
         # need this for our new fold function to see the headers :)
-        refold_source   = 'all',
+        # XXX: turning this off for now...
+        refold_source   = 'long',
     )
     parser = email.parser.BytesHeaderParser(policy=policy)
     return parser.parsebytes(headers)
