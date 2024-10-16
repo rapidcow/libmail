@@ -126,9 +126,10 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
     wrap - (True/False) treat CR/LF/CRLF as semantic line breaks
            and open a newline after each (defaults to True)
     embed - True ('all') for line and EOLs, False ('line') for line
-            only, 'printable' for non-control characters, 'visible'
-            for visible characters (only whitespace encoded), and
-            'none' for nothing (i.e. encode everything)
+            only (EOLs are encoded), 'printable' for non-control
+            characters only (tabs always encoded), 'visible' for
+            visible characters only (spaces also always encoded),
+            and 'none' for nothing (everything is encoded)
             (defaults to whatever wrap is)
     protect - (True/False) ensure that the encoded string always
               ends with linesep.  This is probably important due to
@@ -193,8 +194,8 @@ def _encode_qp_line(fp, line, pad, maxbearlen, linesep, embed):
     sentinel = MTSTR # suffices.
     lastbyte = None
     _encode = (_encode_every_qp_byte if embed == 'none' else
-               _encode_ctrl_qp_bytes if embed == 'printable' else
                _encode_nvis_qp_bytes if embed == 'visible' else
+               _encode_ctrl_qp_bytes if embed == 'printable' else
                _encode_some_qp_bytes) # embed == 'line'
     for thisbyte, nextbyte in pairwise(_encode(line, sentinel)):
         # reserve one byte for soft wrap if we're not at the end
