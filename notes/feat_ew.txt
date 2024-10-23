@@ -1,0 +1,35 @@
+feature: encoded words
+2024 October 23
+
+TODO:
+
+  [ ] add default encoding option
+  [ ] handle : :: :Q :B
+  [ ]
+
+Specs:
+
+# Header: Text text ...
+#### -> to be REFOLDED (uses PYTHON DIRECTLY)
+#### ("smart" mode, uses default encoding)
+#### (with a global option, default iso-8859-1)
+# Header:: Text Text
+#### -> "EXPERT" MODE. PRESERVED. (8-BIT-CLEAN?)
+#### -> lines have linesep appended (CR stripped)
+#### -> any blank line is an ERROR
+#### (with RFC6532, i think we should
+#### let users responsibly choose the
+#### appropriate place to put Unicode)
+
+# Header:Q UTF-8 Text {text} text
+# Header:B GB18030 Text {text} text
+#### QUOTE VERBATIM, NO FOLDING
+#### -> assisted "expert" mode
+#### temporary switch? {B:...} {Q:...}
+#### there is no default encoding
+#### (UTF-8 must be explicitly written)
+#### escape outside: {{ }}
+#### escape inside: {\{\}}
+#### {} MUST BE BALANCED; {} MAY NOT BE NESTED
+#### RFC 2184? Header:Q US-ASCII*EN ....
+
