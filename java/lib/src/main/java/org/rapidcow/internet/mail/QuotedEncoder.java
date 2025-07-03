@@ -127,17 +127,19 @@ public class QuotedEncoder {
         if (this.linesep != null) {
             linesep = this.linesep.getSequence();
         }
-        return new EncodingStream(file, newline, linesep, quoting, protect);
+        return new EncodingStream(file, newline, linesep, maxLineLength, quoting, protect);
     }
 
     private static class EncodingStream extends OutputStream {
         private final OutputStream file;
-        private final byte[] newline;
-        private final byte[] linesep;
-        private final MimeQuoting quoting;
-        private final boolean protect;
+        private final byte[]       newline;
+        private final byte[]       linesep;
+        private final int          linelen;
+        private final MimeQuoting  quoting;
+        private final boolean      protect;
 
         private byte[] current = new byte[2];
+        private int columnOffset = 0;
         private int currentCount = 0;
         private boolean safe = false;
         private boolean closed = false;
@@ -151,11 +153,12 @@ public class QuotedEncoder {
 
         private EncodingStream(
             OutputStream file, byte[] newline, byte[] linesep,
-            MimeQuoting quoting, boolean protect
+            int maxColumnLen, MimeQuoting quoting, boolean protect
         ) {
             this.file = file;
             this.newline = newline;
             this.linesep = linesep;
+            this.linelen = maxColumnLen;
             this.quoting = quoting;
             this.protect = protect;
         }
@@ -188,6 +191,8 @@ public class QuotedEncoder {
         @Override
         public void write(byte[] buffer, int offset, int length) throws IOException {
             Objects.checkFromIndexSize(length, offset, buffer.length);
+            byte[] quote;
+            boolean inLine;
             while (offset < length) {
                 pushToBuffer(buffer[offset++]);
                 if (currentCount == current.length) {
@@ -211,16 +216,25 @@ public class QuotedEncoder {
                             rotateBuffer(1);
                             safe = false;
                         }
-                    } else if (current[1] == '\r' || current[1] == '\n') {
-                        file.write(encodeByte(current[0], false));
-                        /* fall through - handle in next loop */
-                        rotateBuffer(1);
-                        safe = false;
-                    } else {
-                        file.write(encodeByte(current[0], true));
-                        rotateBuffer(1);
-                        safe = false;
+                        columnOffset = 0;
+                        continue;
                     }
+                    inLine = current[1] == '\r' || current[1] == '\n';
+                    quote = encodeByte(current[0], inLine);
+                    /* Always flush pre-emptively -- if we flush when it is too late,
+                     * it's probably not preventable anyways (i.e. mime max length
+                     * essentially equal to length of line sep) */
+                    if (columnOffset + quote.length + (inLine ? 1 : 0) >= linelen) {
+                        file.write(SOFTSEP);
+                        file.write(this.linesep);
+                        columnOffset = 0;
+                    }
+                    file.write(quote);
+                    rotateBuffer(1);
+                    safe = false;
+                    /* Now that we know this line won't end any time soon, if
+                     * there is not enough space for a soft wrap, flush too */
+                    columnOffset += quote.length;
                 }
             }
         }
