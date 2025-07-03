@@ -219,7 +219,7 @@ public class QuotedEncoder {
                         columnOffset = 0;
                         continue;
                     }
-                    inLine = current[1] == '\r' || current[1] == '\n';
+                    inLine = !(current[1] == '\r' || current[1] == '\n');
                     quote = encodeByte(current[0], inLine);
                     /* Always flush pre-emptively -- if we flush when it is too late,
                      * it's probably not preventable anyways (i.e. mime max length
