@@ -193,9 +193,9 @@ public class QuotedEncoder {
                 if (currentCount == current.length) {
                     if (current[0] == '\r' || current[0] == '\n') {
                         if (isNewline()) {
-                            if (this.quoting == MimeQuoting.EMBED_NONE
-                                || this.quoting == MimeQuoting.EMBED_LINE
-                            ) {
+                            /* Only embed the newline itself if not EMBED_LINE
+                             * or higher (i.e. EMBED_NONE only) */
+                            if (this.quoting == MimeQuoting.EMBED_NONE) {
                                 for (byte octet : this.linesep) {
                                     file.write(encodeByte(octet, false));
                                 }
