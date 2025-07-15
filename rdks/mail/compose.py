@@ -346,22 +346,26 @@ class WatchDog:
         i = 0
         j = 0
         n = len(value)
-        while j < n:
-            self._fp.write(value[i:j])
-            i = j
+        while i < n:
             try:
                 j = value.index(self._eol, i) + len(self._eol)
+                eol = True
             except ValueError:
                 j = n
+                eol = False
+            if self._maxlen:
+                logger.debug('checking line limit (%d +%d/%d)', self._lindex, j - i, self._maxlen)
             if self._maxlen and j - i + self._lindex > self._maxlen:
                 # XXX: there may be multiple line exceeded warnings
                 # if one line is written with multiple calls to write()?
                 violation = self._maxlen - self._lindex + 1
                 self._bad('line limit exceeded', self._maxlen + 1)
-            if self._maxsiz and j + self._charno > self._maxsiz:
+            if self._maxsiz:
+                logger.debug('checking size limit (%d +%d/%d)', self._charno, j - i, self._maxsiz)
+            if self._maxsiz and j - i + self._charno > self._maxsiz:
                 violation = self._maxsiz - self._charno + 1
                 self._bad('message size limit exceeded', violation)
-                self._maxsiz = 0
+                self._maxsiz = 0  # total size warning should be issued once
             # XXX XXX: this is probably ridiculously slow
             # but i want accurate char position so :ccccc
             for k, b in enumerate(value[i:j]):
@@ -370,10 +374,13 @@ class WatchDog:
                               'nor binarymime is set', k)
             self._lineno += 1
             self._charno += j - i
-            self._lindex = 0
-        self._fp.write(value[i:])
-        self._lindex += len(value) - i
-        self._charno += len(value) - i
+            if eol:
+                self._lindex = 0
+            else:
+                self._lindex += j - i
+            self._fp.write(value[i:j])
+            i = j
+        assert i == n
 
 # maple <- mapeol <= map EOL
 # note: we allow CR simply because that goes with
