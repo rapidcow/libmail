@@ -353,15 +353,11 @@ class WatchDog:
             except ValueError:
                 j = n
                 eol = False
-            if self._maxlen:
-                logger.debug('checking line limit (%d +%d/%d)', self._lindex, j - i, self._maxlen)
             if self._maxlen and j - i + self._lindex > self._maxlen:
                 # XXX: there may be multiple line exceeded warnings
                 # if one line is written with multiple calls to write()?
                 violation = self._maxlen - self._lindex + 1
                 self._bad('line limit exceeded', self._maxlen + 1)
-            if self._maxsiz:
-                logger.debug('checking size limit (%d +%d/%d)', self._charno, j - i, self._maxsiz)
             if self._maxsiz and j - i + self._charno > self._maxsiz:
                 violation = self._maxsiz - self._charno + 1
                 self._bad('message size limit exceeded', violation)
