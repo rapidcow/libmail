@@ -129,8 +129,9 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
             only (EOLs are encoded), 'printable' for non-control
             characters only (tabs always encoded), 'visible' for
             visible characters only (spaces also always encoded),
-            and 'none' for nothing (everything is encoded)
-            (defaults to whatever wrap is)
+            and 'none' for nothing (everything is encoded).  Also,
+            there is now a variant of 'printable', called 'text',
+            which forgives the EOLs.  (defaults to whatever wrap is)
     protect - (True/False) ensure that the encoded string always
               ends with linesep.  This is probably important due to
               SMTP relying on that last CRLF to terminate the body.
@@ -146,10 +147,10 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
         embed = bool(wrap)
     if isinstance(embed, bool):
         embed = ('line', 'all')[embed]
-    if embed not in {'all', 'line', 'printable', 'visible', 'none'}:
+    if embed not in {'all', 'line', 'text', 'printable', 'visible', 'none'}:
         raise ValueError("embed should be one of 'all', 'line', "
-                         "'printable', 'visible', and 'none', "
-                         "not %r" % (embed,))
+                         "'text', 'printable', 'visible', and "
+                         "'none', not %r" % (embed,))
     buffer = io.BytesIO()
     maxbearlen = maxlinelen - len(linesep)
     softsep = b'=' + canonical_linesep
@@ -158,7 +159,7 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
         raise EncodingError('maxlinelen not longer than than len(linesep)')
     if not wrap:
         bigline, bigeol = _split_eol(body)
-        if bigeol == linesep and embed == 'all':
+        if bigeol == linesep and embed in {'all', 'text'}:
             _encode_qp_line(buffer, bigline, False, maxbearlen,
                             canonical_linesep, 'line')
             buffer.write(canonical_linesep)
@@ -173,7 +174,7 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
         lines = peeker(_iter_lines(body))
         for line, eol in lines:
             buffer.write(nextsep)
-            if eol == linesep and embed == 'all':
+            if eol == linesep and embed in {'all', 'text'}:
                 _encode_qp_line(buffer, line, False,
                                 maxbearlen, canonical_linesep,
                                 'line')
@@ -195,7 +196,8 @@ def _encode_qp_line(fp, line, pad, maxbearlen, linesep, embed):
     lastbyte = None
     _encode = (_encode_every_qp_byte if embed == 'none' else
                _encode_nvis_qp_bytes if embed == 'visible' else
-               _encode_ctrl_qp_bytes if embed == 'printable' else
+               _encode_ctrl_qp_bytes if embed == 'text' or
+                                        embed == 'printable' else
                _encode_some_qp_bytes) # embed == 'line'
     for thisbyte, nextbyte in pairwise(_encode(line, sentinel)):
         # reserve one byte for soft wrap if we're not at the end
