@@ -157,11 +157,17 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
     # less than 1; probably not positive
     if maxbearlen < 1:
         raise EncodingError('maxlinelen not longer than than len(linesep)')
+    # Here we prepare for the case of embedding the EOL,
+    # which introduces this mode of being in a properly
+    # EOL-terminated line -- the "in-line" mode that is.
+    # Only applicable for when embed is 'all' or 'text'.
+    literal_eol = embed in {'all', 'text'}
+    inline_mode = 'text' if embed == 'text' else 'line'
     if not wrap:
         bigline, bigeol = _split_eol(body)
-        if bigeol == linesep and embed in {'all', 'text'}:
+        if bigeol == linesep and literal_eol:
             _encode_qp_line(buffer, bigline, False, maxbearlen,
-                            canonical_linesep, 'line')
+                            canonical_linesep, inline_mode)
             buffer.write(canonical_linesep)
         else:
             _encode_qp_line(buffer, bigline + bigeol, protect, maxbearlen,
@@ -174,10 +180,10 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
         lines = peeker(_iter_lines(body))
         for line, eol in lines:
             buffer.write(nextsep)
-            if eol == linesep and embed in {'all', 'text'}:
+            if eol == linesep and literal_eol:
                 _encode_qp_line(buffer, line, False,
                                 maxbearlen, canonical_linesep,
-                                'line')
+                                inline_mode)
                 nextsep = canonical_linesep
                 lastsep = canonical_linesep
             else:
