@@ -197,9 +197,6 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
     return buffer.getvalue()
 
 def _encode_qp_line(fp, line, pad, maxbearlen, linesep, embed):
-    import sys
-    print(f'{line = }', file=sys.stderr, end=' -> ')
-    print(f'encoder={embed} ', file=sys.stderr, end='')
     spaceleft = maxbearlen
     sentinel = MTSTR # suffices.
     lastbyte = None
@@ -216,7 +213,6 @@ def _encode_qp_line(fp, line, pad, maxbearlen, linesep, embed):
         if len(thisbyte) > reserved:
             # ... given we don't get ourselves stuck in a loop.
             if lastbyte is not None:
-                print(b'=%s' % linesep, end=' ', file=sys.stderr)
                 fp.write(b'=')
                 fp.write(linesep)
                 reserved += maxbearlen - spaceleft
@@ -224,7 +220,6 @@ def _encode_qp_line(fp, line, pad, maxbearlen, linesep, embed):
                 lastbyte = None
         # now we're all "freed" up, we should have space to write
         if len(thisbyte) <= reserved:
-            print(thisbyte, end=' ', file=sys.stderr)
             spaceleft -= fp.write(thisbyte)
             lastbyte = thisbyte
             continue
@@ -234,7 +229,6 @@ def _encode_qp_line(fp, line, pad, maxbearlen, linesep, embed):
         raise EncodingError('maxlinelen is too small to encode the '
                             'first byte of a line (at least %d more '
                             'byte%s needed)' % (more, s))
-    print(file=sys.stderr)
 
 def _encode_some_qp_bytes(line, sentinel):
     lastbyte = None
