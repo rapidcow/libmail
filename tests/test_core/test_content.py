@@ -154,6 +154,10 @@ class TestEncoders(unittest.TestCase):
         self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99',
             embed='all', protect=False).decode('ascii'),
             'E\than =E8=92=99')
+        # "text" is like "printable", but keeps the EOLs
+        self.assertEqual(encoders.encode_qp(b'E\than \t \n\xe8\x92\x99 \t \r\n',
+            embed='text', protect=False).decode('ascii'),
+            'E=09han =09 =0A=\r\n=E8=92=99 =09=20\r\n')
 
     def test_encode_base64(self):
         s1 = b'\xe4\xbb\xa5\xe6\xad\xa3'
