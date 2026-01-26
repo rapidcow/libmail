@@ -525,6 +525,7 @@ def _set_content_from_node(message, reader, root, o, outer=False):
     parts = []
     charset = None
     encoding = None
+    boundary = None
     # encoding params
     eparams = {}
     reeder = reader.inner_rest_reader(root, interpret_input=True)
@@ -550,7 +551,9 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         elif key == b'epilogue':
             message.epilogue = pair.content.decode('utf-8')
         elif key == b'with':
-            _set_param(message, 'Content-Type', 'type', reeder, pair)
+            param, value = _set_param(message, 'Content-Type', 'type', reeder, pair)
+            if param.lower() == 'boundary':
+                boundary = value
         elif key == b'of':
             header, value, params = _set_header(message, reeder, pair, o)
             hlower = header.lower()
@@ -604,6 +607,10 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         logger.debug('do_treol = %r for content of type %s',
                      do_treol, truetype)
         data = mime.treol(root.data, eol) if do_treol else root.data
+        if mimetype.startswith('multipart/') and encoding is not None:
+            raise reader.error(root.start.lineno,
+                'encoding is not a thing for multipart messages')
+
         if encoding == 'quoted-printable':
             # don't set embed and let encode_qp() figure it out
             # it'd be more interesting to pretend that this argument
@@ -654,10 +661,16 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         # (jk i just dont know what to do)
         else:
             if encoding is None:
-                reader.error(_begin_lineno(root),
-                    'please do not omit content transfer encoding... '
-                    'even a 7bit will do if you are just writing ASCII q.q')
-            if encoding != 'binary':
+                if not mimetype.startswith('multipart/'):
+                    reader.error(_begin_lineno(root),
+                        'please do not omit content transfer encoding... '
+                        'even a 7bit will do if you are just writing ASCII q.q')
+                elif boundary is None:
+                    reader.error(_begin_lineno(root),
+                        "you must know your boundary if you are providing "
+                        "your own multipart message; i'm not playing dice "
+                        "game with you today")
+            elif encoding != 'binary':
                 logger.warning('dunno what CTE %r is. pretending it is '
                                'encoded already and fingers-crossed '
                                'hoping for the best', encoding)
@@ -706,6 +719,8 @@ def _set_param(message, header, name, reader, pair):
             message.set_param(param, value, header=header)
     else:
         raise reeder.error(nextpear.start.lineno, 'extraneous line')
+
+    return param, value
 
 NAME2MIME_MAP = {
     # RFC 2045 (MIME Part One)
