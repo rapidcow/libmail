@@ -599,6 +599,11 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         if root.data is None:
             raise reader.error(root.start.lineno,
                 'non-multipart messages must have input data')
+        if mimetype.startswith("multipart/") and boundary is None:
+            reader.error(_begin_lineno(root),
+                "you must know your boundary if you are providing "
+                "your own multipart message; i'm not playing dice "
+                "game with you today")
         eol = eparams['linesep'] = o['linesep'].encode('ascii')
         eparams.setdefault('maxlinelen', o['maxlinelen'])
         # translate EOL for all inline text strings
@@ -661,15 +666,11 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         # (jk i just dont know what to do)
         else:
             if encoding is None:
-                if not mimetype.startswith('multipart/'):
-                    reader.error(_begin_lineno(root),
-                        'please do not omit content transfer encoding... '
-                        'even a 7bit will do if you are just writing ASCII q.q')
-                elif boundary is None:
-                    reader.error(_begin_lineno(root),
-                        "you must know your boundary if you are providing "
-                        "your own multipart message; i'm not playing dice "
-                        "game with you today")
+                reader.error(_begin_lineno(root),
+                    "please do not omit content transfer encoding... "
+                    "even a 7bit will do if you are just writing ASCII q.q "
+                    "(or even \"secretly 7bit\" if you don't want people "
+                    "to see the CTE header...)")
             elif encoding != 'binary':
                 logger.warning('dunno what CTE %r is. pretending it is '
                                'encoded already and fingers-crossed '
