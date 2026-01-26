@@ -441,6 +441,7 @@ MABLE = {
     b'hopefully': Maybe(True), b'probably': Maybe(False),
     b'absolutely!': MustBe(True), b'absolutely not!': MustBe(False),
     b'yippee!': MustBe(True), b'waaaaegh!': MustBe(False),
+    b'please': MustBe(True),
     b'please!': MustBe(True), b'never!': MustBe(False),
     # english 2.0 (with an uncapitalized e for jokes)
     b"yesn't": False, b'perchance': Maybe(False), b"s'pose": Maybe(True),
