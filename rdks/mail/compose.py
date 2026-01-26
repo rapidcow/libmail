@@ -194,6 +194,11 @@ def _main(source, dest, args):
             'smtputf8': Maybe(False),
             '8bitmime': Maybe(False),
             'binarymime': Maybe(False),
+            # in embedded documents such as multipart/signed we might
+            # want to have canonicalizable headers; that is, NO MIME-
+            # Version because we already know that!!!  but compose.py
+            # doesn't know that, so you have to patiently tell it...
+            'embedme': True,
         },
     }
 
@@ -487,7 +492,7 @@ def _set_options(options, r, x):
                     except KeyError:
                         raise reader.error(_begin_lineno(pair),
                             'invalid linesep: %r', name) from None
-                elif field in {'smtputf8', '8bitmime', 'binarymime'}:
+                elif field in {'smtputf8', '8bitmime', 'binarymime', 'embedme'}:
                     name = _chomp(pair.content).lower()
                     try:
                         value = MABLE[name]
@@ -537,7 +542,9 @@ def _set_content(message, reader, o):
             root.input_root, root.input_file,
             len(root.rest), 's' * (len(root.rest) != 1),
         )
-    message['MIME-Version'] = '1.0'
+    # "O, embed me, will you..."
+    if not o['embedme']:
+        message['MIME-Version'] = '1.0'
     _set_content_from_node(message, reader, root, o, outer=True)
 
 PARAMHEAD_VERBS = {b'with', b'where'}
