@@ -269,9 +269,37 @@ def _main(source, dest, args):
                 else:
                     w.write(k, ELPAM[v] if k == 'linesep' else str(v))
 
+    if message.get_content_type() == 'multipart/signed':
+        # Generator uses a special handler for multipart/signed
+        # that forcibly unsets any max_line_length.  We made the
+        # outer part, so wrap it (as it'd be silly to not wrap
+        # something that the user has no control over....)
+        payload = message.get_payload()
+        # We're a little type agonistic, so make sure we can
+        # do this at all first.
+        if isinstance(payload, list):
+            payload = list(map(_force_wrap_header, payload))
+            message.set_payload(payload)
+
     gen = email.generator.BytesGenerator(
         WatchDog(dest, o, args.strict, args.quiet))
     gen.flatten(message)
+
+def _force_wrap_header(message):
+    # Steal the header-value pair from EmailMessage as a multimap.
+    # Says that this is internal API, but I don't care :)
+    multimap = message.raw_items()
+    # Present as in "wrapped", get it?  No... eh whatever >_>
+    present = type(message)(policy=message.policy)
+    for header, value in multimap:
+        headervalue = message.policy.fold(header, value)
+        parser = email.parser.HeaderParser(policy=message.policy)
+        parsed = parser.parsestr(headervalue)
+        # WAIT i've used this before XD never mind
+        (_, headervalue), = parsed.raw_items()
+        present.set_raw(header, headervalue)
+    present.set_payload(message.get_payload())
+    return present
 
 def _set_capabilities(options, server, port, protocol, verbose):
     if port is None:
