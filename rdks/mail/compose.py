@@ -470,8 +470,14 @@ def _set_options(options, r, x):
                             'invalid boolean: %r', name) from None
                 options[field] = value
 
+class MyEmailPolicy(EmailPolicy):
+    def header_store_parse(self, name, value):
+        # XXX: this is very bad, but I don't want Python
+        # to re-encode my already MIME-encoded strings :(
+        return (name, value)
+
 def _parse_headers(headers, o, strict):
-    policy = EmailPolicy(
+    policy = MyEmailPolicy(
         # my stuff >:)
         content_manager = rdks.mail.contrib.contentmanager.ContentManager(),
         header_factory  = rdks.mail.contrib.headerregistry.HeaderRegistry(),
