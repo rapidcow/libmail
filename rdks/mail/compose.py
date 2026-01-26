@@ -756,27 +756,35 @@ def _set_header(message, reader, pair, o):
 
     name = pear.key.decode('us-ascii').lower()
     value = pear.value.decode('utf-8')
-    try:
-        header = NAME2MIME_MAP[name]
-    except KeyError:
-        raise reader.error(pair.start.lineno,
-            'unknown content header name: %r', name)
 
-    # XXX: do unstructured headers with unicode actually work?
-    body_str = body.decode('utf-8')
-    # we don't want trailing CR/LF... sorry :(
-    body_lines = body_str.rstrip('\r\n').splitlines()
-    # continuation character should be CRLF + space...?
-    body_text = (o['linesep'] + ' ').join(body_lines)
-    if body_lines and body_lines[0]:
-        body_text = ' ' + body_text
-    parser = email.parser.HeaderParser(policy=message.policy)
-    parsed = parser.parsestr(header + ':' + body_text)
-    # nasty unpacking o_o;
-    (_, headervalue), = parsed.raw_items()
-    if name != 'description':
-        del message[header]
-    message.set_raw(header, headervalue)
+    # encoding "secretly-" is a special trick...
+    # All options (if any) still apply, but it won't appear
+    # in the email itself.  Might be really useful for RFC3156
+    # (MIME/OpenPGP)....
+    if name == "encoding" and value in {"secretly 7bit", "secretly 8bit"}:
+        value = value[9:]  # strip "secretly-" prefix
+    else:
+        try:
+            header = NAME2MIME_MAP[name]
+        except KeyError:
+            raise reader.error(pair.start.lineno,
+                'unknown content header name: %r', name)
+
+        # XXX: do unstructured headers with unicode actually work?
+        body_str = body.decode('utf-8')
+        # we don't want trailing CR/LF... sorry :(
+        body_lines = body_str.rstrip('\r\n').splitlines()
+        # continuation character should be CRLF + space...?
+        body_text = (o['linesep'] + ' ').join(body_lines)
+        if body_lines and body_lines[0]:
+            body_text = ' ' + body_text
+        parser = email.parser.HeaderParser(policy=message.policy)
+        parsed = parser.parsestr(header + ':' + body_text)
+        # nasty unpacking o_o;
+        (_, headervalue), = parsed.raw_items()
+        if name != 'description':
+            del message[header]
+        message.set_raw(header, headervalue)
 
     pyparams = {}
     for pear in reeder:
