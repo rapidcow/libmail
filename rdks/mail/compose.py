@@ -757,6 +757,11 @@ def _set_header(message, reader, pair, o):
 
     name = pear.key.decode('us-ascii').lower()
     value = pear.value.decode('utf-8')
+    try:
+        header = NAME2MIME_MAP[name]
+    except KeyError:
+        raise reader.error(pair.start.lineno,
+            'unknown content header name: %r', name)
 
     # encoding "secretly-" is a special trick...
     # All options (if any) still apply, but it won't appear
@@ -765,12 +770,6 @@ def _set_header(message, reader, pair, o):
     if name == "encoding" and value in {"secretly 7bit", "secretly 8bit"}:
         value = value[9:]  # strip "secretly-" prefix
     else:
-        try:
-            header = NAME2MIME_MAP[name]
-        except KeyError:
-            raise reader.error(pair.start.lineno,
-                'unknown content header name: %r', name)
-
         # XXX: do unstructured headers with unicode actually work?
         body_str = body.decode('utf-8')
         # we don't want trailing CR/LF... sorry :(
