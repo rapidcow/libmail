@@ -328,7 +328,6 @@ class WatchDog:
         self._8bit = options['8bitmime'] or options['binarymime']
         self._strict = strict
         self._quiet = quiet
-        self._buffer = bytearray()
 
     def _bad(self, msg, off=0):
         full = 'line %d, char %d (byte %d): %s' % (
@@ -342,7 +341,6 @@ class WatchDog:
             warnings.warn(full, ValidationWarning)
 
     def write(self, value):
-        self._buffer.clear()
         i = 0
         j = 0
         n = len(value)
