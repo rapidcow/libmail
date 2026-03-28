@@ -170,7 +170,10 @@ def _main(source, dest, args):
         elif not args.no_chdir:
             cwd = os.path.dirname(os.path.abspath(args.message))
     else:
-        cwd = os.path.abspath(args.cwd)
+        if args.cwd == '.':
+            cwd = os.getcwd()
+        else:
+            cwd = os.path.abspath(args.cwd)
 
     # logging :)
     if args.quiet:
