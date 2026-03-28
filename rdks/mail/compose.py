@@ -116,7 +116,8 @@ def main(argv=None):
     parser.add_argument('--version', '-V', action='version',
                         version='%%(prog)s %s' % __version__)
     parser.add_argument('--cwd', '-C', metavar='PATH', default=None,
-                        help='base directory (default: $PWD)')
+                        help='base directory (default: $PWD), or '
+                        'parent directory of the message config')
     # input/output
     parser.add_argument('message', nargs='?', default='-',
                         help='file to read message config from (default :-)')
@@ -164,7 +165,10 @@ def _dispatch_outstream(source, args):
 
 def _main(source, dest, args):
     if args.cwd is None:
-        cwd = os.path.dirname(os.path.abspath(args.message))
+        if args.message != '-':
+            cwd = os.getcwd()
+        elif not args.no_chdir:
+            cwd = os.path.dirname(os.path.abspath(args.message))
     else:
         cwd = os.path.abspath(args.cwd)
 
