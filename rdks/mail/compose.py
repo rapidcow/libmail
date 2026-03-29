@@ -165,9 +165,9 @@ def _dispatch_outstream(source, args):
 
 def _main(source, dest, args):
     if args.cwd is None:
-        if args.message != '-':
+        if args.message == '-':
             cwd = os.getcwd()
-        elif not args.no_chdir:
+        else:
             cwd = os.path.dirname(os.path.abspath(args.message))
     else:
         if args.cwd == '.':
