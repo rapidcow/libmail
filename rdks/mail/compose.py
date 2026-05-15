@@ -205,7 +205,7 @@ def _main(source, dest, args):
             # want to have canonicalizable headers; that is, NO MIME-
             # Version because we already know that!!!  but compose.py
             # doesn't know that, so you have to patiently tell it...
-            'embedme': True,
+            'embedme': False,
         },
     }
 
