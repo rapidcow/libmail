@@ -500,13 +500,15 @@ def _set_options(options, r, x):
                     except KeyError:
                         raise reader.error(_begin_lineno(pair),
                             'invalid linesep: %r', name) from None
-                elif field in {'smtputf8', '8bitmime', 'binarymime', 'embedme'}:
+                elif field in {'smtputf8', '8bitmime', 'binarymime', 'embedme', 'embed'}:
                     name = _chomp(pair.content).lower()
                     try:
                         value = MABLE[name]
                     except KeyError:
                         raise reader.error(_begin_lineno(pair),
                             'invalid boolean: %r', name) from None
+                    if field == 'embed':
+                        field = 'embedme'
                 options[field] = value
 
 class MyEmailPolicy(EmailPolicy):
