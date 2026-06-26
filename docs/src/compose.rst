@@ -582,6 +582,10 @@ which must be something compose.py can handle)
       for Content-ID
    *  :option:`of language <compose.py message content of-language>`
       for Content-Language
+   *  :option:`of base <compose.py message content of-base>`
+      for Content-Base
+   *  :option:`of location <compose.py message content of-location>`
+      for Content-Location
 
    Equivalent API calls with :meth:`~email.message.EmailMessage.__delitem__`
    and :meth:`~email.message.EmailMessage.__setitem__`::
@@ -738,5 +742,27 @@ which must be something compose.py can handle)
 .. option:: of-language <value>
 
    Set the Content-Language header, as per `RFC 3282`_.
+   For details on language tags, see `RFC 3066`_.
 
+Below are some nonstandard headers that may sometimes be useful.
+
+.. option:: of-base <value>
+
+   Set the nonstandard Content-Base header.
+   According to `RFC 2076, Section 3.6`_, it can be
+   used to record the "[b]ase to be used for resolving
+   relative URIs within this content part."
+
+.. option:: of-location <value>
+
+   Set the nonstandard Content-Location header.
+   According to `RFC 2076, Section 3.6`_, it can be
+   used to record the "URI with which the content of
+   this content part might be retrievable."
+   One might also find the description of the synonymous
+   HTTP header, `Content-Location`_, informative.
+
+.. _RFC 3066: https://datatracker.ietf.org/doc/html/rfc3066
 .. _RFC 3282: https://datatracker.ietf.org/doc/html/rfc3282
+.. _RFC 2076, Section 3.6: https://datatracker.ietf.org/doc/html/rfc2076#section-3.6
+.. _Content-Location: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Location

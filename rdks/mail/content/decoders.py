@@ -43,7 +43,11 @@ def decode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
                 if i + 1 == len(line):
                     break
                 # otherwise it must be two hex digits
-                hexval = line[i+1:i+3]
+                #
+                # note that to support bytearray as body, type
+                # conversion is needed because we need to look up
+                # hexval in QP_TABLE and it needs to be bytes
+                hexval = bytes(line[i+1:i+3])
                 if len(hexval) != 2 or not bytes_ishex(hexval):
                     raise DecodingError('malformed QP escape: %r'
                                         % (hexval,))

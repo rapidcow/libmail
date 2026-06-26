@@ -18,8 +18,7 @@ there is NO WARRANTY, to the extent permitted by law.
 
 import email.message
 import email.parser
-# from email.policy import default as default_policy
-from rdks.mail.contrib.policy import default as default_policy
+from email.policy import EmailPolicy
 import email.generator
 import smtplib
 
@@ -36,6 +35,8 @@ import sys
 
 import rdks.list
 import rdks.mail.content as mime
+import rdks.mail.contrib.contentmanager
+import rdks.mail.contrib.headerregistry
 
 SHORTNAMES = {
     'NOTSET': 'NULL',
@@ -193,6 +194,11 @@ def _main(source, dest, args):
             'smtputf8': Maybe(False),
             '8bitmime': Maybe(False),
             'binarymime': Maybe(False),
+            # in embedded documents such as multipart/signed we might
+            # want to have canonicalizable headers; that is, NO MIME-
+            # Version because we already know that!!!  but compose.py
+            # doesn't know that, so you have to patiently tell it...
+            'embedme': True,
         },
     }
 
@@ -268,9 +274,37 @@ def _main(source, dest, args):
                 else:
                     w.write(k, ELPAM[v] if k == 'linesep' else str(v))
 
+    if message.get_content_type() == 'multipart/signed':
+        # Generator uses a special handler for multipart/signed
+        # that forcibly unsets any max_line_length.  We made the
+        # outer part, so wrap it (as it'd be silly to not wrap
+        # something that the user has no control over....)
+        payload = message.get_payload()
+        # We're a little type agonistic, so make sure we can
+        # do this at all first.
+        if isinstance(payload, list):
+            payload = list(map(_force_wrap_header, payload))
+            message.set_payload(payload)
+
     gen = email.generator.BytesGenerator(
         WatchDog(dest, o, args.strict, args.quiet))
     gen.flatten(message)
+
+def _force_wrap_header(message):
+    # Steal the header-value pair from EmailMessage as a multimap.
+    # Says that this is internal API, but I don't care :)
+    multimap = message.raw_items()
+    # Present as in "wrapped", get it?  No... eh whatever >_>
+    present = type(message)(policy=message.policy)
+    for header, value in multimap:
+        headervalue = message.policy.fold(header, value)
+        parser = email.parser.HeaderParser(policy=message.policy)
+        parsed = parser.parsestr(headervalue)
+        # WAIT i've used this before XD never mind
+        (_, headervalue), = parsed.raw_items()
+        present.set_raw(header, headervalue)
+    present.set_payload(message.get_payload())
+    return present
 
 def _set_capabilities(options, server, port, protocol, verbose):
     if port is None:
@@ -327,7 +361,6 @@ class WatchDog:
         self._8bit = options['8bitmime'] or options['binarymime']
         self._strict = strict
         self._quiet = quiet
-        self._buffer = bytearray()
 
     def _bad(self, msg, off=0):
         full = 'line %d, char %d (byte %d): %s' % (
@@ -341,26 +374,25 @@ class WatchDog:
             warnings.warn(full, ValidationWarning)
 
     def write(self, value):
-        self._buffer.clear()
         i = 0
         j = 0
         n = len(value)
-        while j < n:
-            self._fp.write(value[i:j])
-            i = j
+        while i < n:
             try:
                 j = value.index(self._eol, i) + len(self._eol)
+                eol = True
             except ValueError:
                 j = n
+                eol = False
             if self._maxlen and j - i + self._lindex > self._maxlen:
                 # XXX: there may be multiple line exceeded warnings
                 # if one line is written with multiple calls to write()?
                 violation = self._maxlen - self._lindex + 1
                 self._bad('line limit exceeded', self._maxlen + 1)
-            if self._maxsiz and j + self._charno > self._maxsiz:
+            if self._maxsiz and j - i + self._charno > self._maxsiz:
                 violation = self._maxsiz - self._charno + 1
                 self._bad('message size limit exceeded', violation)
-                self._maxsiz = 0
+                self._maxsiz = 0  # total size warning should be issued once
             # XXX XXX: this is probably ridiculously slow
             # but i want accurate char position so :ccccc
             for k, b in enumerate(value[i:j]):
@@ -369,10 +401,13 @@ class WatchDog:
                               'nor binarymime is set', k)
             self._lineno += 1
             self._charno += j - i
-            self._lindex = 0
-        self._fp.write(value[i:])
-        self._lindex += len(value) - i
-        self._charno += len(value) - i
+            if eol:
+                self._lindex = 0
+            else:
+                self._lindex += j - i
+            self._fp.write(value[i:j])
+            i = j
+        assert i == n
 
 # maple <- mapeol <= map EOL
 # note: we allow CR simply because that goes with
@@ -406,6 +441,7 @@ MABLE = {
     b'hopefully': Maybe(True), b'probably': Maybe(False),
     b'absolutely!': MustBe(True), b'absolutely not!': MustBe(False),
     b'yippee!': MustBe(True), b'waaaaegh!': MustBe(False),
+    b'please': MustBe(True),
     b'please!': MustBe(True), b'never!': MustBe(False),
     # english 2.0 (with an uncapitalized e for jokes)
     b"yesn't": False, b'perchance': Maybe(False), b"s'pose": Maybe(True),
@@ -457,7 +493,7 @@ def _set_options(options, r, x):
                     except KeyError:
                         raise reader.error(_begin_lineno(pair),
                             'invalid linesep: %r', name) from None
-                elif field in {'smtputf8', '8bitmime', 'binarymime'}:
+                elif field in {'smtputf8', '8bitmime', 'binarymime', 'embedme'}:
                     name = _chomp(pair.content).lower()
                     try:
                         value = MABLE[name]
@@ -466,8 +502,18 @@ def _set_options(options, r, x):
                             'invalid boolean: %r', name) from None
                 options[field] = value
 
+class MyEmailPolicy(EmailPolicy):
+    def header_store_parse(self, name, value):
+        # XXX: this is very bad, but I don't want Python
+        # to re-encode my already MIME-encoded strings :(
+        return (name, value)
+
 def _parse_headers(headers, o, strict):
-    policy = default_policy.clone(
+    policy = MyEmailPolicy(
+        # my stuff >:)
+        content_manager = rdks.mail.contrib.contentmanager.ContentManager(),
+        header_factory  = rdks.mail.contrib.headerregistry.HeaderRegistry(),
+        # EmailPolicy stuff
         max_line_length = (max(1, o['maxlinelen'] - len(o['linesep']))
                             if o['maxlinelen'] else 0),
         linesep         = o['linesep'],
@@ -476,7 +522,8 @@ def _parse_headers(headers, o, strict):
                             o['binarymime'] else '7bit'),
         raise_on_defect = strict,
         # need this for our new fold function to see the headers :)
-        refold_source   = 'all',
+        # XXX: turning this off for now...
+        refold_source   = 'long',
     )
     parser = email.parser.BytesHeaderParser(policy=policy)
     return parser.parsebytes(headers)
@@ -496,7 +543,9 @@ def _set_content(message, reader, o):
             root.input_root, root.input_file,
             len(root.rest), 's' * (len(root.rest) != 1),
         )
-    message['MIME-Version'] = '1.0'
+    # "O, embed me, will you..."
+    if not o['embedme']:
+        message['MIME-Version'] = '1.0'
     _set_content_from_node(message, reader, root, o, outer=True)
 
 PARAMHEAD_VERBS = {b'with', b'where'}
@@ -510,6 +559,7 @@ def _set_content_from_node(message, reader, root, o, outer=False):
     parts = []
     charset = None
     encoding = None
+    boundary = None
     # encoding params
     eparams = {}
     reeder = reader.inner_rest_reader(root, interpret_input=True)
@@ -535,7 +585,9 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         elif key == b'epilogue':
             message.epilogue = pair.content.decode('utf-8')
         elif key == b'with':
-            _set_param(message, 'Content-Type', 'type', reeder, pair)
+            param, value = _set_param(message, 'Content-Type', 'type', reeder, pair)
+            if param.lower() == 'boundary':
+                boundary = value
         elif key == b'of':
             header, value, params = _set_header(message, reeder, pair, o)
             hlower = header.lower()
@@ -581,6 +633,11 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         if root.data is None:
             raise reader.error(root.start.lineno,
                 'non-multipart messages must have input data')
+        if mimetype.startswith("multipart/") and boundary is None:
+            reader.error(_begin_lineno(root),
+                "you must know your boundary if you are providing "
+                "your own multipart message; i'm not playing dice "
+                "game with you today")
         eol = eparams['linesep'] = o['linesep'].encode('ascii')
         eparams.setdefault('maxlinelen', o['maxlinelen'])
         # translate EOL for all inline text strings
@@ -589,6 +646,10 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         logger.debug('do_treol = %r for content of type %s',
                      do_treol, truetype)
         data = mime.treol(root.data, eol) if do_treol else root.data
+        if mimetype.startswith('multipart/') and encoding is not None:
+            raise reader.error(root.start.lineno,
+                'encoding is not a thing for multipart messages')
+
         if encoding == 'quoted-printable':
             # don't set embed and let encode_qp() figure it out
             # it'd be more interesting to pretend that this argument
@@ -640,9 +701,11 @@ def _set_content_from_node(message, reader, root, o, outer=False):
         else:
             if encoding is None:
                 reader.error(_begin_lineno(root),
-                    'please do not omit content transfer encoding... '
-                    'even a 7bit will do if you are just writing ASCII q.q')
-            if encoding != 'binary':
+                    "please do not omit content transfer encoding... "
+                    "even a 7bit will do if you are just writing ASCII q.q "
+                    "(or even \"secretly 7bit\" if you don't want people "
+                    "to see the CTE header...)")
+            elif encoding != 'binary':
                 logger.warning('dunno what CTE %r is. pretending it is '
                                'encoded already and fingers-crossed '
                                'hoping for the best', encoding)
@@ -692,6 +755,8 @@ def _set_param(message, header, name, reader, pair):
     else:
         raise reeder.error(nextpear.start.lineno, 'extraneous line')
 
+    return param, value
+
 NAME2MIME_MAP = {
     # RFC 2045 (MIME Part One)
     'version':     'MIME-Version',
@@ -700,8 +765,11 @@ NAME2MIME_MAP = {
     'disposition': 'Content-Disposition',
     'id':          'Content-ID',
     'description': 'Content-Description',
-    # RFC 3282
+    # RFC 3066 + RFC 3282
     'language':    'Content-Language',
+    # RFC 2076 (non-standard)
+    'base':        'Content-Base',
+    'location':    'Content-Location',
 }
 
 def _set_header(message, reader, pair, o):
@@ -729,21 +797,28 @@ def _set_header(message, reader, pair, o):
         raise reader.error(pair.start.lineno,
             'unknown content header name: %r', name)
 
-    # XXX: do unstructured headers with unicode actually work?
-    body_str = body.decode('utf-8')
-    # we don't want trailing CR/LF... sorry :(
-    body_lines = body_str.rstrip('\r\n').splitlines()
-    # continuation character should be CRLF + space...?
-    body_text = (o['linesep'] + ' ').join(body_lines)
-    if body_lines and body_lines[0]:
-        body_text = ' ' + body_text
-    parser = email.parser.HeaderParser(policy=message.policy)
-    parsed = parser.parsestr(header + ':' + body_text)
-    # nasty unpacking o_o;
-    (_, headervalue), = parsed.raw_items()
-    if name != 'description':
-        del message[header]
-    message.set_raw(header, headervalue)
+    # encoding "secretly-" is a special trick...
+    # All options (if any) still apply, but it won't appear
+    # in the email itself.  Might be really useful for RFC3156
+    # (MIME/OpenPGP)....
+    if name == "encoding" and value in {"secretly 7bit", "secretly 8bit"}:
+        value = value[9:]  # strip "secretly-" prefix
+    else:
+        # XXX: do unstructured headers with unicode actually work?
+        body_str = body.decode('utf-8')
+        # we don't want trailing CR/LF... sorry :(
+        body_lines = body_str.rstrip('\r\n').splitlines()
+        # continuation character should be CRLF + space...?
+        body_text = (o['linesep'] + ' ').join(body_lines)
+        if body_lines and body_lines[0]:
+            body_text = ' ' + body_text
+        parser = email.parser.HeaderParser(policy=message.policy)
+        parsed = parser.parsestr(header + ':' + body_text)
+        # nasty unpacking o_o;
+        (_, headervalue), = parsed.raw_items()
+        if name != 'description':
+            del message[header]
+        message.set_raw(header, headervalue)
 
     pyparams = {}
     for pear in reeder:

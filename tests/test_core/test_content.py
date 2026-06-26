@@ -154,6 +154,10 @@ class TestEncoders(unittest.TestCase):
         self.assertEqual(encoders.encode_qp(b'E\than \xe8\x92\x99',
             embed='all', protect=False).decode('ascii'),
             'E\than =E8=92=99')
+        # "text" is like "printable", but keeps the EOLs
+        self.assertEqual(encoders.encode_qp(b'E\than \t \n\xe8\x92\x99 \t \r\n',
+            embed='text', protect=False).decode('ascii'),
+            'E=09han =09 =0A=\r\n=E8=92=99 =09=20\r\n')
 
     def test_encode_base64(self):
         s1 = b'\xe4\xbb\xa5\xe6\xad\xa3'
@@ -226,6 +230,11 @@ class TestDecoders(unittest.TestCase):
         # be rude to bad input
         with self.assertRaises(DecodingError):
             decoders.decode_qp(b'espa=F1ol=0D\n')
+
+    def test_decode_qp_with_bytearray(self):
+        self.assertEqual(decoders.decode_qp(
+            bytearray(b'espa=F1ol=0A\r\n')),
+            b'espa\xf1ol\n\r\n')
 
     def test_decode_base64(self):
         s1 = b'\x45\x74\x68\x61\x6e\x21'

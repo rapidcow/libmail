@@ -342,18 +342,12 @@ class TimeDiff(object):
     to figure out how the heck that works :(
     """
 
-    # maximum timedelta representable by sig=0 and sig=1 respectively.
-    # it is a ValueError to try to set a timedelta outside of this range.
+    # maximum # of ticks representable by sig=0 and sig=1 respectively.
+    # it is a ValueError to try to represent ticks outside of this range.
     MAX_SMALL_TICKS = 0x7fffffff << 18
     MAX_LARGE_TICKS = 0x7fffffff << 23
 
     def __init__(self, sig, value):
-        if sig == 0 and value > self.MAX_SMALL_TICKS:
-            raise ValueError('number of ticks %d (hex %#x) '
-                             'out of range for sig=0' % (value, value))
-        if sig == 1 and value > self.MAX_LARGE_TICKS:
-            raise ValueError('number of ticks %d (hex %#x) '
-                             'out of range for sig=1' % (value, value))
         self._sig = sig
         self._value = value
 
@@ -389,31 +383,41 @@ class TimeDiff(object):
     def __bytes__(self):
         return struct.pack('>I', self.sig << 31 | self.value)
 
-    def ticks(self):
+    def as_ticks(self):
         if self.sig:
             return self.value << 23
         return self.value << 18
 
     @classmethod
-    def from_ticks(cls, ticks):
+    def from_ticks(cls, ticks, sig=-1):
         if ticks < 0:
             raise ValueError('cannot represent negative ticks')
-        if ticks > cls.MAX_SMALL_TICKS:
+
+        if sig == -1:
+            sig = int(ticks > cls.MAX_SMALL_TICKS)
+
+        if sig:
+            if ticks > cls.MAX_LARGE_TICKS:
+                raise ValueError('number of ticks %d (hex %#x) '
+                                 'out of range for sig=1' % (ticks, ticks))
             sig = 1
             value = ticks >> 23
         else:
+            if ticks > cls.MAX_SMALL_TICKS:
+                raise ValueError('number of ticks %d (hex %#x) '
+                                 'out of range for sig=0' % (ticks, ticks))
             sig = 0
             value = ticks >> 18
         return cls(sig, value)
 
     def as_timedelta(self):
-        return datetime.timedelta(microseconds=self.ticks() // 10)
+        return datetime.timedelta(microseconds=self.as_ticks() // 10)
 
     @classmethod
-    def from_timedelta(cls, delta):
+    def from_timedelta(cls, delta, sig=-1):
         seconds = delta.days * 86400 + delta.seconds
         ticks = seconds * 10000000 + delta.microseconds * 10
-        return cls.from_ticks(ticks)
+        return cls.from_ticks(ticks, sig=sig)
 
     # as for arithmetic / comparison, stick to ticks or timedelta
     # i don't think i care enough to do add/subtract here given its

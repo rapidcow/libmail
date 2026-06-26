@@ -268,7 +268,7 @@ class ContentManager:
             canonical_linesep=b'\n')
 
     def encode_quoted_printable(self, message, body, *,
-            maxlinelen, linesep, wrap=None, embed=None, protect=True):
+        maxlinelen, linesep, wrap=None, embed=None, protect=True):
         # this is purely my subjective taste... if you don't like it,
         # change it!  but make sure to respect the user's choices :)
         maintype = message.get_content_maintype()

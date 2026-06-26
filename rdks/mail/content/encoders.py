@@ -74,7 +74,6 @@ def _iter_lines(body):
     for line in lines:
         yield _split_eol(line)
 
-
 def _split_eol(line):
     for off, eol in EOL_MARKERS:
         if line.endswith(eol):
@@ -127,9 +126,12 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
     wrap - (True/False) treat CR/LF/CRLF as semantic line breaks
            and open a newline after each (defaults to True)
     embed - True ('all') for line and EOLs, False ('line') for line
-            only, 'visible' for visible characters (only whitespace
-            encoded), and 'none' for nothing (i.e. encode everything)
-            (defaults to whatever wrap is)
+            only (EOLs are encoded), 'printable' for non-control
+            characters only (tabs always encoded), 'visible' for
+            visible characters only (spaces also always encoded),
+            and 'none' for nothing (everything is encoded).  Also,
+            there is now a variant of 'printable', called 'text',
+            which forgives the EOLs.  (defaults to whatever wrap is)
     protect - (True/False) ensure that the encoded string always
               ends with linesep.  This is probably important due to
               SMTP relying on that last CRLF to terminate the body.
@@ -145,21 +147,27 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
         embed = bool(wrap)
     if isinstance(embed, bool):
         embed = ('line', 'all')[embed]
-    if embed not in {'all', 'line', 'printable', 'visible', 'none'}:
+    if embed not in {'all', 'line', 'text', 'printable', 'visible', 'none'}:
         raise ValueError("embed should be one of 'all', 'line', "
-                         "'printable', 'visible', and 'none', "
-                         "not %r" % (embed,))
+                         "'text', 'printable', 'visible', and "
+                         "'none', not %r" % (embed,))
     buffer = io.BytesIO()
     maxbearlen = maxlinelen - len(linesep)
     softsep = b'=' + canonical_linesep
     # less than 1; probably not positive
     if maxbearlen < 1:
         raise EncodingError('maxlinelen not longer than than len(linesep)')
+    # Here we prepare for the case of embedding the EOL,
+    # which introduces this mode of being in a properly
+    # EOL-terminated line -- the "in-line" mode that is.
+    # Only applicable for when embed is 'all' or 'text'.
+    literal_eol = embed in {'all', 'text'}
+    inline_mode = 'text' if embed == 'text' else 'line'
     if not wrap:
         bigline, bigeol = _split_eol(body)
-        if bigeol == linesep and embed == 'all':
+        if bigeol == linesep and literal_eol:
             _encode_qp_line(buffer, bigline, False, maxbearlen,
-                            canonical_linesep, 'line')
+                            canonical_linesep, inline_mode)
             buffer.write(canonical_linesep)
         else:
             _encode_qp_line(buffer, bigline + bigeol, protect, maxbearlen,
@@ -172,10 +180,10 @@ def encode_qp(body, *, maxlinelen=80, linesep=b'\r\n',
         lines = peeker(_iter_lines(body))
         for line, eol in lines:
             buffer.write(nextsep)
-            if eol == linesep and embed == 'all':
+            if eol == linesep and literal_eol:
                 _encode_qp_line(buffer, line, False,
                                 maxbearlen, canonical_linesep,
-                                'line')
+                                inline_mode)
                 nextsep = canonical_linesep
                 lastsep = canonical_linesep
             else:
@@ -193,9 +201,10 @@ def _encode_qp_line(fp, line, pad, maxbearlen, linesep, embed):
     sentinel = MTSTR # suffices.
     lastbyte = None
     _encode = (_encode_every_qp_byte if embed == 'none' else
-               _encode_ctrl_qp_bytes if embed == 'printable' else
-               _encode_visb_qp_bytes if embed == 'visible' else
-               _encode_some_qp_bytes)
+               _encode_nvis_qp_bytes if embed == 'visible' else
+               _encode_ctrl_qp_bytes if embed == 'text' or
+                                        embed == 'printable' else
+               _encode_some_qp_bytes) # embed == 'line'
     for thisbyte, nextbyte in pairwise(_encode(line, sentinel)):
         # reserve one byte for soft wrap if we're not at the end
         # OR we're at the end but a padding is demanded
@@ -236,7 +245,7 @@ def _encode_ctrl_qp_bytes(line, sentinel):
         yield b'=09' if byte == 0x09 else encoded
     yield sentinel
 
-def _encode_visb_qp_bytes(line, sentinel):
+def _encode_nvis_qp_bytes(line, sentinel):
     for byte in line:
         yield QP_FINAL[byte]
     yield sentinel
