@@ -116,7 +116,8 @@ def main(argv=None):
     parser.add_argument('--version', '-V', action='version',
                         version='%%(prog)s %s' % __version__)
     parser.add_argument('--cwd', '-C', metavar='PATH', default=None,
-                        help='base directory (default: $PWD)')
+                        help='base directory (default: $PWD), or '
+                        'parent directory of the message config')
     # input/output
     parser.add_argument('message', nargs='?', default='-',
                         help='file to read message config from (default :-)')
@@ -164,9 +165,15 @@ def _dispatch_outstream(source, args):
 
 def _main(source, dest, args):
     if args.cwd is None:
-        cwd = os.path.dirname(os.path.abspath(args.message))
+        if args.message == '-':
+            cwd = os.getcwd()
+        else:
+            cwd = os.path.dirname(os.path.abspath(args.message))
     else:
-        cwd = os.path.abspath(args.cwd)
+        if args.cwd == '.':
+            cwd = os.getcwd()
+        else:
+            cwd = os.path.abspath(args.cwd)
 
     # logging :)
     if args.quiet:
@@ -198,7 +205,7 @@ def _main(source, dest, args):
             # want to have canonicalizable headers; that is, NO MIME-
             # Version because we already know that!!!  but compose.py
             # doesn't know that, so you have to patiently tell it...
-            'embedme': True,
+            'embedme': False,
         },
     }
 
@@ -493,13 +500,15 @@ def _set_options(options, r, x):
                     except KeyError:
                         raise reader.error(_begin_lineno(pair),
                             'invalid linesep: %r', name) from None
-                elif field in {'smtputf8', '8bitmime', 'binarymime', 'embedme'}:
+                elif field in {'smtputf8', '8bitmime', 'binarymime', 'embedme', 'embed'}:
                     name = _chomp(pair.content).lower()
                     try:
                         value = MABLE[name]
                     except KeyError:
                         raise reader.error(_begin_lineno(pair),
                             'invalid boolean: %r', name) from None
+                    if field == 'embed':
+                        field = 'embedme'
                 options[field] = value
 
 class MyEmailPolicy(EmailPolicy):
