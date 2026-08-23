@@ -1170,7 +1170,8 @@ class ConfigReader:
             self._lookahead = None
         return pair.replace(
             key=pair.key.replace(b'\r', b''),
-            value=pair.value.replace(b'\r', b''))
+            value=(None if pair.value is None else
+                   pair.value.replace(b'\r', b'')))
 
     def __next__(self):
         while True:
